@@ -1,0 +1,45 @@
+{
+  "name": "Intern Flow Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "internflow",
+        "httpMethod": "POST"
+      },
+      "name": "Incoming Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:4000/webhooks/n8n",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {
+          "headers": {
+            "x-internflow-secret": "{{ $env.N8N_WEBHOOK_SECRET }}"
+          }
+        },
+        "bodyParametersJson": "={{ $json }}"
+      },
+      "name": "Forward to Intern Flow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [520, 300]
+    }
+  ],
+  "connections": {
+    "Incoming Webhook": {
+      "main": [
+        [
+          {
+            "node": "Forward to Intern Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

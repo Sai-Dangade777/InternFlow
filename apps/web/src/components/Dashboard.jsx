@@ -40,10 +40,6 @@ const rolePanels = {
     label: "HR",
     focus: "Screening and onboarding"
   },
-  mentor: {
-    label: "Mentor",
-    focus: "Progress and mentorship"
-  },
   it: {
     label: "IT",
     focus: "Access provisioning"
@@ -60,13 +56,12 @@ const roleActions = {
     "Approve onboarding batches",
     "Export audit trail"
   ],
-  hr: ["Verify documents", "Schedule HR interview", "Issue onboarding email"],
-  mentor: ["Assign mentor", "Set weekly goals", "Log progress update"],
+  hr: ["Verify documents", "Schedule interview", "Issue onboarding email"],
   it: ["Provision email", "Grant repo access", "Confirm tool licenses"],
   compliance: ["Verify NDA status", "Check background docs", "Archive closure pack"]
 };
 
-const statusSteps = ["Referral", "HR Review", "NDA", "Active", "Completed"];
+const statusSteps = ["Referral", "NDA", "Active", "Completed"]; 
 
 export default function Dashboard({ role = "admin", mode = "overview" }) {
   const [summary, setSummary] = useState(fallbackSummary);
@@ -444,10 +439,10 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
               <button
                 type="button"
                 className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-300"
-                onClick={() => handleDraftEmail("mentor-intro")}
+                onClick={() => handleDraftEmail("intro")}
                 disabled={isDrafting}
               >
-                {isDrafting ? "Drafting..." : "Draft mentor intro"}
+                {isDrafting ? "Drafting..." : "Draft communication"}
               </button>
             </div>
             <div className="mt-3 text-xs text-slate-300">
@@ -457,7 +452,7 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
                   <p className="mt-2 whitespace-pre-line text-slate-400">{draftedEmail.body}</p>
                 </>
               ) : (
-                <p className="text-slate-400">Generate a draft to share with the mentor.</p>
+                <p className="text-slate-400">Generate a draft to share.</p>
               )}
             </div>
           </div>
@@ -505,6 +500,7 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
       ) : null}
 
       {mode === "workflow" ? (
+        (role === "admin" || role === "hr") ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="grid gap-4">
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
@@ -547,9 +543,15 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
           </div>
           <WorkflowStepper status={selectedCandidate?.status} currentStep={currentStep} />
         </div>
-      ) : null}
+        ) : (
+          <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950 p-5">
+            <p className="text-sm text-slate-300">Workflow & SLA views are visible to HR and Program Admin only.</p>
+          </div>
+        )
+      ) : null} 
 
       {mode === "compliance" ? (
+        (role === "admin" || role === "hr") ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="grid gap-4">
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
@@ -658,7 +660,12 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
             </div>
           </div>
         </div>
-      ) : null}
+        ) : (
+          <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950 p-5">
+            <p className="text-sm text-slate-300">Workflow & SLA views are visible to HR and Program Admin only.</p>
+          </div>
+        )
+      ) : null} 
     </section>
   );
 }

@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import healthRoutes from "./routes/health.js";
-import authRoutes from "./routes/auth.js";
 import referralRoutes from "./routes/referrals.js";
 import candidateRoutes from "./routes/candidates.js";
 import aiRoutes from "./routes/ai.js";
@@ -47,7 +46,6 @@ app.get("/", (req, res) => {
 
 app.use("/webhooks", webhookRoutes);
 app.use("/health", healthRoutes);
-app.use("/auth", authRoutes);
 app.use("/referrals", referralRoutes);
 app.use("/candidates", candidateRoutes);
 app.use("/ai", aiRoutes);

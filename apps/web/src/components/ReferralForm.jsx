@@ -9,18 +9,16 @@ const initialState = {
   availability: "",
   unpaidConsent: false,
   inPersonConsent: false,
+  hasIdProof: false,
   joiningLocation: "",
   internshipDurationWeeks: "",
   internshipStartDate: "",
   internshipEndDate: "",
-  projectOverview: "",
+  domain: "",
   relationshipDeclaration: "",
   referrerName: "",
   referrerEmail: "",
   referrerDepartment: "",
-  mentorName: "",
-  mentorEmail: "",
-  mentorTeam: "",
   resumeText: "",
   education: [],
   resume: null
@@ -62,14 +60,12 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
     payload.append("internshipDurationWeeks", formState.internshipDurationWeeks.trim());
     payload.append("internshipStartDate", formState.internshipStartDate);
     payload.append("internshipEndDate", formState.internshipEndDate);
-    payload.append("projectOverview", formState.projectOverview.trim());
+    payload.append("domain", formState.domain.trim());
+    payload.append("hasIdProof", String(formState.hasIdProof));
     payload.append("relationshipDeclaration", formState.relationshipDeclaration.trim());
     payload.append("referrerName", formState.referrerName.trim());
     payload.append("referrerEmail", formState.referrerEmail.trim());
     payload.append("referrerDepartment", formState.referrerDepartment.trim());
-    payload.append("mentorName", formState.mentorName.trim());
-    payload.append("mentorEmail", formState.mentorEmail.trim());
-    payload.append("mentorTeam", formState.mentorTeam.trim());
     payload.append("resumeText", formState.resumeText.trim());
     payload.append("education", JSON.stringify(formState.education || []));
 
@@ -138,10 +134,10 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
           internshipDurationWeeks: formState.internshipDurationWeeks,
           internshipStartDate: formState.internshipStartDate,
           internshipEndDate: formState.internshipEndDate,
-          projectOverview: formState.projectOverview,
+          domain: formState.domain,
+          hasIdProof: String(formState.hasIdProof),
           relationshipDeclaration: formState.relationshipDeclaration,
           referrerName: formState.referrerName,
-          mentorName: formState.mentorName,
           unpaidConsent: String(formState.unpaidConsent),
           inPersonConsent: String(formState.inPersonConsent)
         })
@@ -156,7 +152,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
     } finally {
       setIsValidating(false);
     }
-  };
+  }; 
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg">
@@ -301,7 +297,18 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
             />
             Candidate is available for in-person requirements.
           </label>
-        </div>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              name="hasIdProof"
+              checked={formState.hasIdProof}
+              onChange={handleChange}
+              className="h-4 w-4 rounded border-slate-700 bg-slate-950"
+              required
+            />
+            I have uploaded a PDF resume and Aadhaar card (ID proof).
+          </label>
+        </div> 
         <div className="grid gap-2">
           <label className="text-sm" htmlFor="joiningLocation">
             Joining location
@@ -363,18 +370,24 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
           </div>
         </div>
         <div className="grid gap-2">
-          <label className="text-sm" htmlFor="projectOverview">
-            Project overview
+          <label className="text-sm" htmlFor="domain">
+            Domain of internship
           </label>
-          <textarea
-            id="projectOverview"
-            name="projectOverview"
-            className="min-h-[96px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            placeholder="Brief project scope and expected outcomes"
-            value={formState.projectOverview}
+          <select
+            id="domain"
+            name="domain"
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            value={formState.domain}
             onChange={handleChange}
             required
-          />
+          >
+            <option value="">Select domain</option>
+            <option value="Java Full Stack">Java Full Stack</option>
+            <option value="Cloud">Cloud</option>
+            <option value="Data Science">Data Science</option>
+            <option value="UI/UX">UI/UX</option>
+            <option value="Operations (Non-IT)">Operations (Non-IT)</option>
+          </select>
         </div>
         <div className="grid gap-2">
           <label className="text-sm" htmlFor="relationshipDeclaration">
@@ -390,7 +403,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
             required
           />
         </div>
-        <div className="grid gap-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4 md:grid-cols-2">
+        <div className="grid gap-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
           <div className="grid gap-2">
             <p className="text-xs uppercase tracking-wide text-slate-500">Referrer</p>
             <input
@@ -420,38 +433,6 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
               placeholder="Department"
               type="text"
               value={formState.referrerDepartment}
-              onChange={handleChange}
-            />
-          </div>
-          <div className="grid gap-2">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Mentor</p>
-            <input
-              id="mentorName"
-              name="mentorName"
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Mentor name"
-              type="text"
-              value={formState.mentorName}
-              onChange={handleChange}
-              required
-            />
-            <input
-              id="mentorEmail"
-              name="mentorEmail"
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="mentor@company.com"
-              type="email"
-              value={formState.mentorEmail}
-              onChange={handleChange}
-              required
-            />
-            <input
-              id="mentorTeam"
-              name="mentorTeam"
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Team"
-              type="text"
-              value={formState.mentorTeam}
               onChange={handleChange}
             />
           </div>

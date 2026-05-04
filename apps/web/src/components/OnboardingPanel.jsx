@@ -32,7 +32,7 @@ export default function OnboardingPanel({ candidate, onUpdated }) {
     }));
   };
 
-  const handleSubmit = async (status) => {
+  const handleSubmit = async (status, recipient) => {
     if (!candidate) {
       return;
     }
@@ -43,6 +43,7 @@ export default function OnboardingPanel({ candidate, onUpdated }) {
         method: "PATCH",
         body: JSON.stringify({
           status,
+          submittedTo: recipient || undefined,
           ...formState
         })
       });
@@ -124,15 +125,15 @@ export default function OnboardingPanel({ candidate, onUpdated }) {
         <button
           type="button"
           className="rounded-full border border-emerald-500/70 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200"
-          onClick={() => handleSubmit("submitted")}
+          onClick={() => handleSubmit("submitted", "admin")}
           disabled={!candidate || isLocked}
         >
-          Submit to HR
+          Submit to Admin
         </button>
       </div>
       {isLocked ? (
         <p className="mt-3 text-xs text-amber-300">
-          Form locked after submission. HR can update Non-Worker ID and Government ID.
+          Form locked after submission. Admin can update Non-Worker ID and Government ID.
         </p>
       ) : null}
       {statusMessage ? <p className="mt-3 text-xs text-slate-400">{statusMessage}</p> : null}

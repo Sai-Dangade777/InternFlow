@@ -10,11 +10,6 @@ const roles = [
     description: "Screening & onboarding"
   },
   {
-    id: "mentor",
-    label: "Mentor",
-    description: "Assignment & progress"
-  },
-  {
     id: "it",
     label: "IT",
     description: "Access provisioning"

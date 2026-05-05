@@ -172,8 +172,10 @@ export const handleNdaSignatureWebhook = async (req, res, next) => {
     }
 
     const payload = req.body || {};
-    const candidateId = payload.candidateId || payload.candidate?.id;
-    const email = payload.email || payload.candidate?.email;
+    const rawCandidateId = payload.candidateId || payload.candidate?.id;
+    const rawEmail = payload.email || payload.candidate?.email;
+    const candidateId = typeof rawCandidateId === "string" ? rawCandidateId.trim() : "";
+    const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
     const provider = payload.provider || "esign";
     const envelopeId = payload.envelopeId || payload.envelope_id || "";
     const rawStatus = String(payload.status || payload.event || "").toLowerCase();
@@ -184,7 +186,7 @@ export const handleNdaSignatureWebhook = async (req, res, next) => {
       return res.status(400).json({ error: "candidateId or email is required." });
     }
 
-    const lookup = candidateId ? { _id: candidateId } : { email };
+    const lookup = candidateId ? { _id: { $eq: candidateId } } : { email: { $eq: email } };
     const candidate = await Candidate.findOne(lookup);
 
     if (!candidate) {

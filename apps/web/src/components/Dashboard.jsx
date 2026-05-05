@@ -67,6 +67,8 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
   const [candidates, setCandidates] = useState(fallbackCandidates);
   const [notifications, setNotifications] = useState([]);
   const [aiInsight, setAiInsight] = useState(null);
+  const [aiInsightStatus, setAiInsightStatus] = useState("idle");
+  const [aiInsightError, setAiInsightError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [draftedEmail, setDraftedEmail] = useState(null);
   const [isDrafting, setIsDrafting] = useState(false);
@@ -80,6 +82,10 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
     [candidates, selectedId]
   );
   const [slaRisk, setSlaRisk] = useState({ riskLevel: "LOW", reason: "" });
+  const resolvedStatus =
+    selectedCandidate?.status && statusSteps.includes(selectedCandidate.status)
+      ? selectedCandidate.status
+      : statusSteps[0];
 
   const loadNotifications = async () => {
     try {
@@ -185,21 +191,32 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
 
   const handleGenerateInsight = async () => {
     setIsGenerating(true);
+    setAiInsightStatus("loading");
+    setAiInsightError("");
+    setAiInsight(null);
     try {
       const response = await fetchJson("/ai/evaluate", {
         method: "POST",
         body: JSON.stringify({
           skills: selectedCandidate?.skills || [],
           education: selectedCandidate?.education || [],
-          availability: selectedCandidate?.availability || ""
+          availability: selectedCandidate?.availability || "",
+          domain: selectedCandidate?.domain || "",
+          status: selectedCandidate?.status || "",
+          readinessExplanation: selectedCandidate?.readinessExplanation || ""
         })
       });
-      setAiInsight(response.data);
+      if (response.data && Object.keys(response.data).length) {
+        setAiInsight(response.data);
+        setAiInsightStatus("ready");
+      } else {
+        setAiInsight(null);
+        setAiInsightStatus("empty");
+      }
     } catch (error) {
-      setAiInsight({
-        score: 82,
-        explanation: "AI service unavailable. Showing cached insight for demo." 
-      });
+      setAiInsight(null);
+      setAiInsightError("AI insight generation is unavailable right now.");
+      setAiInsightStatus("error");
     } finally {
       setIsGenerating(false);
     }
@@ -264,9 +281,7 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
     if (!selectedCandidate?._id) {
       return;
     }
-    const currentIndex = statusSteps.indexOf(
-      selectedCandidate.status === "HR Review" ? "NDA" : selectedCandidate.status || statusSteps[0]
-    );
+    const currentIndex = statusSteps.indexOf(resolvedStatus);
     const nextStatus = statusSteps[currentIndex + 1];
     if (!nextStatus) {
       return;
@@ -304,7 +319,7 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
 
   const currentStep = Math.max(
     0,
-    statusSteps.indexOf(selectedCandidate?.status === "HR Review" ? "NDA" : selectedCandidate?.status || statusSteps[0])
+    statusSteps.indexOf(resolvedStatus)
   );
   const nextStatus = statusSteps[currentStep + 1];
 
@@ -426,16 +441,49 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
         <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
           <p className="text-xs uppercase tracking-wide text-slate-500">AI Summary</p>
           <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <p className="text-sm text-slate-200">
-              {aiInsight
-                ? `Score ${aiInsight.score}: ${aiInsight.explanation}`
-                : "Generate an insight to surface readiness risks and next steps."}
-            </p>
-            {selectedCandidate?.readinessExplanation ? (
-              <p className="mt-3 text-xs text-slate-400">
-                Candidate readiness: {selectedCandidate.readinessExplanation}
+            {aiInsightStatus === "loading" ? (
+              <p className="text-sm text-slate-200">Generating insight...</p>
+            ) : aiInsightStatus === "error" ? (
+              <p className="text-sm text-rose-300">{aiInsightError}</p>
+            ) : aiInsightStatus === "empty" ? (
+              <p className="text-sm text-slate-200">No insight returned. Try again in a moment.</p>
+            ) : aiInsight ? (
+              <div className="space-y-3 text-sm text-slate-200">
+                <p>
+                  Score {aiInsight.score}: {aiInsight.explanation}
+                </p>
+                <p className="text-xs uppercase tracking-wide text-emerald-300/70">
+                  Candidate readiness
+                </p>
+                <p className="text-xs text-slate-400">
+                  {aiInsight.candidateReadiness || selectedCandidate?.readinessExplanation || "Ready for review."}
+                </p>
+                {aiInsight.riskInsights?.length ? (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-amber-300/70">Risk insights</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
+                      {aiInsight.riskInsights.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {aiInsight.nextSteps?.length ? (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-sky-300/70">Next steps</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
+                      {aiInsight.nextSteps.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-200">
+                Generate an insight to surface readiness risks and next steps.
               </p>
-            ) : null}
+            )}
           </div>
           <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
             <div className="flex items-center justify-between">
@@ -549,14 +597,13 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
         </div>
         ) : (
           <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950 p-5">
-            <p className="text-sm text-slate-300">Workflow & SLA views are visible to HR and Program Admin only.</p>
+            <p className="text-sm text-slate-300">Workflow & SLA views are visible to HR and Admin only.</p>
           </div>
         )
       ) : null} 
 
       {mode === "compliance" ? (
-        (role === "admin" || role === "hr") ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr]">
           <div className="grid gap-4">
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
               <p className="text-xs uppercase tracking-wide text-slate-500">Compliance Metrics</p>
@@ -580,9 +627,9 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
                   </span>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-[11px] text-slate-400">
-                  SLA breaches: Non-Worker ID{" "}
-                  {complianceMetrics?.slaBreaches?.nonWorkerId ?? "-"}, NDA{" "}
-                  {complianceMetrics?.slaBreaches?.nda ?? "-"}, Deactivation{" "}
+                  SLA breaches: Non-Worker ID {" "}
+                  {complianceMetrics?.slaBreaches?.nonWorkerId ?? "-"}, NDA {" "}
+                  {complianceMetrics?.slaBreaches?.nda ?? "-"}, Deactivation {" "}
                   {complianceMetrics?.slaBreaches?.accessDeactivation ?? "-"}
                 </div>
               </div>
@@ -614,61 +661,7 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
               </div>
             </div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Workflow SLA</p>
-            <p className="mt-3 text-sm text-slate-300">
-              Track Non-Worker ID, NDA, and access provisioning against SLA targets.
-            </p>
-            <div className="mt-4 space-y-3 text-xs text-slate-400">
-              {selectedCandidate?.slaStatus?.items?.length ? (
-                selectedCandidate.slaStatus.items.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <span>{item.label}</span>
-                    <span
-                      className={
-                        item.status === "breach"
-                          ? "text-rose-300"
-                          : item.status === "pending"
-                          ? "text-amber-300"
-                          : item.status === "met"
-                          ? "text-emerald-300"
-                          : "text-slate-300"
-                      }
-                    >
-                      {item.status} {item.dueAt ? `· due ${new Date(item.dueAt).toLocaleDateString()}` : ""}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span>Non-Worker ID SLA</span>
-                    <span className="text-emerald-300">Within 1 business day</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>NDA signed before start</span>
-                    <span className="text-amber-300">Monitor</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>AD deactivation</span>
-                    <span className="text-slate-300">24h post end</span>
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-              <p className="text-xs text-slate-400">SLA risk level</p>
-              <p className="mt-1 text-sm text-slate-200">
-                {slaRisk.riskLevel}: {slaRisk.reason || "No SLA breaches detected."}
-              </p>
-            </div>
-          </div>
         </div>
-        ) : (
-          <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950 p-5">
-            <p className="text-sm text-slate-300">Workflow & SLA views are visible to HR and Program Admin only.</p>
-          </div>
-        )
       ) : null} 
     </section>
   );

@@ -1,5 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import RoleSwitcher from "../components/RoleSwitcher.jsx";
 
 const links = [
@@ -11,7 +10,25 @@ const links = [
 ];
 
 export default function Layout() {
-  const [role, setRole] = useState("admin");
+  const location = useLocation();
+  const currentRole =
+    location.pathname.startsWith("/hr")
+      ? "hr"
+      : location.pathname.startsWith("/it")
+      ? "it"
+      : location.pathname.startsWith("/compliance")
+      ? "compliance"
+      : "admin";
+
+  const visibleLinks = links.filter((link) => {
+    if (link.to === "/workflow") {
+      return currentRole === "admin" || currentRole === "hr";
+    }
+    if (link.to === "/compliance") {
+      return currentRole === "admin" || currentRole === "hr" || currentRole === "compliance";
+    }
+    return true;
+  });
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
@@ -39,7 +56,7 @@ export default function Layout() {
               Live build: Hackathon MVP
               <div className="mt-1 text-[11px] text-emerald-300/80">API + GenAI ready</div>
             </div>
-            <RoleSwitcher activeRole={role} onChange={setRole} />
+            <RoleSwitcher activeRole={currentRole} />
           </div>
         </div>
       </header>
@@ -48,10 +65,12 @@ export default function Layout() {
         <aside className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4">
           <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Sections</p>
           <div className="mt-3 grid gap-2">
-            {links.map((link) => (
+            {visibleLinks.map((link) => {
+              const target = link.to === "/" ? `/${currentRole}/dashboard` : link.to;
+              return (
               <NavLink
                 key={link.to}
-                to={link.to}
+                to={target}
                 className={({ isActive }) =>
                   `rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                     isActive
@@ -63,11 +82,12 @@ export default function Layout() {
               >
                 {link.label}
               </NavLink>
-            ))}
+              );
+            })}
           </div>
         </aside>
         <section className="min-h-[70vh]">
-          <Outlet context={{ role }} />
+          <Outlet context={{ role: currentRole }} />
         </section>
       </main>
     </div>

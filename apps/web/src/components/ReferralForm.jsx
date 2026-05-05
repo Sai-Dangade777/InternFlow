@@ -24,6 +24,17 @@ const initialState = {
   resume: null
 };
 
+const domainGroups = [
+  {
+    label: "IT Domains",
+    options: ["Java Full Stack", "Frontend Development", "Backend Development", "Cloud Computing"]
+  },
+  {
+    label: "Non-IT Domains",
+    options: ["HR", "Marketing", "Operations"]
+  }
+];
+
 export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) {
   const [formState, setFormState] = useState(initialState);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,6 +58,10 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!formState.unpaidConsent || !formState.inPersonConsent || !formState.hasIdProof) {
+      setStatusMessage("All eligibility confirmations are required before submission.");
+      return;
+    }
     setIsSubmitting(true);
     setStatusMessage("");
     setPossibleMatches([]);
@@ -301,7 +316,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
               className="h-4 w-4 rounded border-slate-700 bg-slate-950"
               required
             />
-            I confirm this is an unpaid internship.
+            I confirm this is an unpaid internship. <span className="text-rose-300">*</span>
           </label>
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input
@@ -312,7 +327,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
               className="h-4 w-4 rounded border-slate-700 bg-slate-950"
               required
             />
-            Candidate is available for in-person requirements.
+            Candidate is available for in-person requirements. <span className="text-rose-300">*</span>
           </label>
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input
@@ -323,7 +338,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
               className="h-4 w-4 rounded border-slate-700 bg-slate-950"
               required
             />
-            I have uploaded a PDF resume and Aadhaar card (ID proof).
+            Eligibility: I have uploaded both PDF resume and Aadhaar card. <span className="text-rose-300">*</span>
           </label>
         </div> 
         <div className="grid gap-2">
@@ -399,11 +414,15 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
             required
           >
             <option value="">Select domain</option>
-            <option value="Java Full Stack">Java Full Stack</option>
-            <option value="Cloud">Cloud</option>
-            <option value="Data Science">Data Science</option>
-            <option value="UI/UX">UI/UX</option>
-            <option value="Operations (Non-IT)">Operations (Non-IT)</option>
+            {domainGroups.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.options.map((domain) => (
+                  <option key={domain} value={domain}>
+                    {domain}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </div>
         <div className="grid gap-2">

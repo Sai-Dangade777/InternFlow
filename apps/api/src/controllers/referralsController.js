@@ -15,6 +15,16 @@ const buildDuplicateConditions = ({ email, phone }) => {
   return conditions;
 };
 
+const allowedDomains = new Set([
+  "Java Full Stack",
+  "Frontend Development",
+  "Backend Development",
+  "Cloud Computing",
+  "HR",
+  "Marketing",
+  "Operations"
+]);
+
 export const createReferral = async (req, res, next) => {
   try {
     const {
@@ -67,6 +77,10 @@ export const createReferral = async (req, res, next) => {
       !relationshipDeclaration
     ) {
       return res.status(400).json({ error: "Internship details are required." });
+    }
+
+    if (!allowedDomains.has(domain)) {
+      return res.status(400).json({ error: "Please select a valid internship domain." });
     }
 
     const duplicateConditions = buildDuplicateConditions({ email, phone });

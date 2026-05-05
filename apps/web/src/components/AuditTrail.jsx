@@ -1,5 +1,16 @@
 export default function AuditTrail({ candidate }) {
   const timeline = candidate?.timeline || [];
+  const formatDateTime = (value) =>
+    value
+      ? new Date(value).toLocaleString("en-US", {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true
+        })
+      : "";
   const keyDates = [
     { label: "Referral created", date: candidate?.createdAt },
     { label: "NDA signed", date: candidate?.ndaSignedAt },
@@ -17,7 +28,7 @@ export default function AuditTrail({ candidate }) {
             {keyDates.map((k) => (
               <div key={k.label} className="flex items-center justify-between">
                 <span>{k.label}</span>
-                <span className="text-slate-200">{new Date(k.date).toLocaleString()}</span>
+                <span className="text-slate-200">{formatDateTime(k.date)}</span>
               </div>
             ))}
           </div>
@@ -32,7 +43,7 @@ export default function AuditTrail({ candidate }) {
                 <p className="text-sm text-slate-200">{event.stage}</p>
                 <p className="text-xs text-slate-500">{event.note || "Event recorded"}</p>
                 {event.at || event.date || event.createdAt ? (
-                  <p className="text-[11px] text-slate-500 mt-1">{new Date(event.at || event.date || event.createdAt).toLocaleString()}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{formatDateTime(event.at || event.date || event.createdAt)}</p>
                 ) : null}
               </div>
             </div>

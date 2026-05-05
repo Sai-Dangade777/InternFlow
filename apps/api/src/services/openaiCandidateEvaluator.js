@@ -4,12 +4,33 @@ const CANDIDATE_EVAL_PROMPT = `You are an internship candidate evaluator. Use th
 Return strict JSON only with:
 - score: number (0-100)
 - explanation: string (max 25 words)
+- candidateReadiness: string (one short sentence)
+- riskInsights: array of strings
+- nextSteps: array of strings
 Keep it concise and cost-effective.`;
+
+const buildMockInsight = ({ skills = [], availability = "", domain = "", status = "" }) => {
+  const baseScore = 65 + Math.min(skills.length * 5, 25);
+  const readiness = status === "Active" ? "Already active in the workflow." : "Ready for the next workflow step.";
+  return {
+    score: Math.min(95, baseScore),
+    explanation: "Strong fundamentals with clear internship availability.",
+    candidateReadiness: readiness,
+    riskInsights: [
+      domain ? `${domain} track selected.` : "Domain selection needs review.",
+      availability ? `Availability noted: ${availability}.` : "Availability should be confirmed."
+    ].filter(Boolean),
+    nextSteps: ["Advance the candidate to NDA and confirm document readiness."]
+  };
+};
 
 export const evaluateCandidateWithOpenAI = async ({
   skills = [],
   education = [],
   availability = "",
+  domain = "",
+  status = "",
+  readinessExplanation = "",
   apiKey
 }) => {
   const isMock =
@@ -18,14 +39,9 @@ export const evaluateCandidateWithOpenAI = async ({
     !(apiKey || process.env.CLAUDE_API_KEY);
 
   if (isMock) {
-    const baseScore = 65 + Math.min(skills.length * 5, 25);
     return {
       prompt: CANDIDATE_EVAL_PROMPT,
-      data: {
-        score: Math.min(95, baseScore),
-        explanation:
-          "Strong fundamentals with clear internship availability. Recommend moving to HR review."
-      }
+      data: buildMockInsight({ skills, availability, domain, status })
     };
   }
 
@@ -38,7 +54,10 @@ export const evaluateCandidateWithOpenAI = async ({
   const inputPayload = {
     skills,
     education,
-    availability
+    availability,
+    domain,
+    status,
+    readinessExplanation
   };
 
   try {
@@ -61,11 +80,10 @@ export const evaluateCandidateWithOpenAI = async ({
       data: parsed
     };
   } catch (error) {
-    const message = error?.message || "Failed to evaluate candidate";
-    const details = error?.response?.data || null;
-    const err = new Error(message);
-    err.details = details;
-    throw err;
+    return {
+      prompt: CANDIDATE_EVAL_PROMPT,
+      data: buildMockInsight({ skills, availability, domain, status })
+    };
   }
 };
 

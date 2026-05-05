@@ -33,6 +33,7 @@ const joiningFormSchema = new mongoose.Schema(
   {
     status: { type: String, enum: ["draft", "submitted"], default: "draft" },
     submittedAt: { type: Date, default: null },
+    submittedTo: { type: String, default: "" },
     phone: { type: String, default: "" },
     address: { type: String, default: "" },
     emergencyContact: { type: String, default: "" },

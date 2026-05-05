@@ -83,19 +83,13 @@ const formatDate = (value) => {
 const buildOfferLetter = (candidate) => {
   return `Offer Letter\n\nDear ${candidate.name},\n\nWe are excited to offer you an unpaid internship with Intern Flow. Your internship is scheduled to start on ${formatDate(
     candidate.internshipStartDate
-  )} and run for ${candidate.internshipDurationWeeks || "TBD"} weeks.\n\nProject overview: ${
-    candidate.projectOverview || "To be finalized with your mentor."
-  }\n\nPlease review and sign the NDA before your start date. Reach out to ${
-    candidate.mentor?.name || "your mentor"
-  } for any questions.\n\nRegards,\nIntern Flow Program Office`;
+  )} and run for ${candidate.internshipDurationWeeks || "TBD"} weeks.\n\nPlease review and sign the NDA before your start date. Reach out to the program office for any questions.\n\nRegards,\nIntern Flow Program Office`;
 };
 
 const buildStartConfirmation = (candidate) => {
   return `Start Confirmation\n\nHi ${candidate.name},\n\nYour internship start is confirmed for ${formatDate(
     candidate.lifecycle?.startDate || candidate.internshipStartDate
-  )}. Please ensure your NDA is signed and your Non-Worker ID is active.\n\nMentor: ${
-    candidate.mentor?.name || "Assigned mentor"
-  }\nAccess credentials will be shared via secure email.\n\nThanks,\nIntern Flow Operations`;
+  )}. Please ensure your NDA is signed and your Non-Worker ID is active.\n\nAccess credentials will be shared via secure email.\n\nThanks,\nIntern Flow Operations`;
 };
 
 const buildClosureLetter = (candidate) => {
@@ -107,9 +101,7 @@ const buildClosureLetter = (candidate) => {
 const buildCertificate = (candidate) => {
   return `Certificate of Completion\n\nThis is to certify that ${candidate.name} successfully completed an unpaid internship with Intern Flow.\n\nDuration: ${formatDate(
     candidate.lifecycle?.startDate || candidate.internshipStartDate
-  )} to ${formatDate(candidate.lifecycle?.closureDate || candidate.internshipEndDate)}\nMentor: ${
-    candidate.mentor?.name || "Assigned mentor"
-  }\n\nIssued by Intern Flow Program Office`;
+  )} to ${formatDate(candidate.lifecycle?.closureDate || candidate.internshipEndDate)}\n\nIssued by Intern Flow Program Office`;
 };
 
 const createAuditEntry = async ({ action, actor = "system", metadata = {}, candidateId }) => {
@@ -221,7 +213,7 @@ export const updateCandidateStatus = async (req, res, next) => {
 export const updateJoiningForm = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, phone, address, emergencyContact, nonWorkerId, governmentId, declarationAccepted } = req.body;
+    const { status, submittedTo, phone, address, emergencyContact, nonWorkerId, governmentId, declarationAccepted } = req.body;
 
     const candidate = await Candidate.findById(id);
     if (!candidate) {
@@ -241,6 +233,7 @@ export const updateJoiningForm = async (req, res, next) => {
     candidate.joiningForm = {
       ...candidate.joiningForm,
       status: status || candidate.joiningForm.status,
+      submittedTo: submittedTo ?? candidate.joiningForm.submittedTo,
       submittedAt:
         status === "submitted" && !candidate.joiningForm.submittedAt
           ? new Date()
@@ -255,7 +248,10 @@ export const updateJoiningForm = async (req, res, next) => {
 
     candidate.timeline.push({
       stage: "Onboarding",
-      note: status === "submitted" ? "Joining form submitted." : "Joining form saved."
+      note:
+        status === "submitted"
+          ? `Joining form submitted to ${submittedTo || "admin"}.`
+          : "Joining form saved."
     });
 
     if (status === "submitted") {
@@ -286,8 +282,8 @@ export const updateJoiningForm = async (req, res, next) => {
     if (status === "submitted") {
       await createNotificationEntry({
         type: "onboarding",
-        subject: "Joining form submitted",
-        body: `${candidate.name} submitted the joining form for onboarding.`,
+        subject: "Joining form submitted to Admin",
+        body: `${candidate.name} submitted the joining form for onboarding to Admin.`,
         candidateId: candidate._id
       });
     }

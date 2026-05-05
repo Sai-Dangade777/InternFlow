@@ -19,11 +19,14 @@ router.post("/parse-resume", async (req, res, next) => {
 
 router.post("/evaluate", async (req, res, next) => {
   try {
-    const { skills, education, availability } = req.body;
+    const { skills, education, availability, domain, status, readinessExplanation } = req.body;
     const result = await evaluateCandidateWithOpenAI({
       skills,
       education,
-      availability
+      availability,
+      domain,
+      status,
+      readinessExplanation
     });
     res.json(result);
   } catch (error) {

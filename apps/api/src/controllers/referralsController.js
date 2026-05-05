@@ -4,6 +4,17 @@ import AuditLog from "../models/AuditLog.js";
 import { evaluateCandidateWithOpenAI } from "../services/openaiCandidateEvaluator.js";
 import { parseResumeWithOpenAI } from "../services/openaiResumeParser.js";
 
+const buildDuplicateConditions = ({ email, phone }) => {
+  const conditions = [];
+  if (email) {
+    conditions.push({ email });
+  }
+  if (phone) {
+    conditions.push({ phone });
+  }
+  return conditions;
+};
+
 export const createReferral = async (req, res, next) => {
   try {
     const {
@@ -14,18 +25,16 @@ export const createReferral = async (req, res, next) => {
       availability = "",
       unpaidConsent,
       inPersonConsent,
+      hasIdProof,
       joiningLocation,
+      domain,
       internshipDurationWeeks,
       internshipStartDate,
       internshipEndDate,
-      projectOverview,
       relationshipDeclaration,
       referrerName,
       referrerEmail,
       referrerDepartment,
-      mentorName,
-      mentorEmail,
-      mentorTeam,
       resumeText,
       education
     } = req.body;
@@ -35,35 +44,45 @@ export const createReferral = async (req, res, next) => {
       return res.status(400).json({ error: "Name, email, and phone are required." });
     }
 
-    if (!referrerName || !mentorName) {
-      return res.status(400).json({ error: "Referrer and mentor details are required." });
+    if (!referrerName) {
+      return res.status(400).json({ error: "Referrer details are required." });
     }
 
-    if (String(unpaidConsent) !== "true" || String(inPersonConsent) !== "true") {
+    if (
+      String(unpaidConsent) !== "true" ||
+      String(inPersonConsent) !== "true" ||
+      String(hasIdProof) !== "true"
+    ) {
       return res.status(400).json({
-        error: "Eligibility consent (unpaid and in-person) is required."
+        error: "Eligibility consent (unpaid, in-person, and ID proof) is required."
       });
     }
 
     if (
       !joiningLocation ||
+      !domain ||
       !internshipDurationWeeks ||
       !internshipStartDate ||
       !internshipEndDate ||
-      !projectOverview ||
       !relationshipDeclaration
     ) {
       return res.status(400).json({ error: "Internship details are required." });
     }
 
-    const existingCandidate = await Candidate.findOne({
-      $or: [{ email }, { phone }]
-    });
+    const duplicateConditions = buildDuplicateConditions({ email, phone });
+    const duplicateMatches = duplicateConditions.length
+      ? await Candidate.find({ $or: duplicateConditions })
+          .select("name email phone status domain createdAt")
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .lean()
+      : [];
 
-    if (existingCandidate) {
+    if (duplicateMatches.length > 0) {
       return res.status(409).json({
         error: "Duplicate candidate detected.",
-        candidateId: existingCandidate._id
+        candidateId: duplicateMatches[0]._id,
+        possibleMatches: duplicateMatches
       });
     }
 
@@ -112,6 +131,8 @@ export const createReferral = async (req, res, next) => {
       skills: finalSkills,
       education: finalEducation,
       availability,
+      domain,
+      hasIdProof: String(hasIdProof) === "true",
       unpaidConsent: String(unpaidConsent) === "true",
       inPersonConsent: String(inPersonConsent) === "true",
       joiningLocation,
@@ -120,17 +141,11 @@ export const createReferral = async (req, res, next) => {
         : null,
       internshipStartDate: internshipStartDate ? new Date(internshipStartDate) : null,
       internshipEndDate: internshipEndDate ? new Date(internshipEndDate) : null,
-      projectOverview: projectOverview || "",
       relationshipDeclaration: relationshipDeclaration || "",
       referrer: {
         name: referrerName,
         email: referrerEmail,
         department: referrerDepartment
-      },
-      mentor: {
-        name: mentorName,
-        email: mentorEmail,
-        team: mentorTeam
       },
       resumePath: resume ? resume.path : "",
       timeline: [
@@ -163,7 +178,7 @@ export const createReferral = async (req, res, next) => {
       type: "referral",
       channel: "email",
       status: "pending",
-      recipient: mentorEmail || referrerEmail || "",
+      recipient: referrerEmail || email || "",
       subject: "New referral received",
       body: `${name} has been referred. Review the candidate in Intern Flow.`,
       candidateId: candidate._id

@@ -1,17 +1,18 @@
 const steps = [
   "Referral",
-  "HR Review",
   "NDA",
   "Active",
   "Completed"
 ];
+
+const normalizeStatus = (value) => (value === "HR Review" ? "NDA" : value);
 
 export default function WorkflowStepper({ currentStep, status }) {
   const resolvedStep =
     typeof currentStep === "number"
       ? currentStep
       : status
-      ? Math.max(0, steps.indexOf(status))
+      ? Math.max(0, steps.indexOf(normalizeStatus(status)))
       : 0;
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg">

@@ -14,10 +14,10 @@ const requiredFields = [
   "internshipDurationWeeks",
   "internshipStartDate",
   "internshipEndDate",
-  "projectOverview",
+  "domain",
   "relationshipDeclaration",
   "referrerName",
-  "mentorName",
+  "hasIdProof",
   "unpaidConsent",
   "inPersonConsent"
 ];
@@ -25,7 +25,11 @@ const requiredFields = [
 const buildBaseValidation = ({ payload, duplicateMatches }) => {
   const missingFields = requiredFields.filter((field) => {
     const value = payload?.[field];
-    if (field === "unpaidConsent" || field === "inPersonConsent") {
+    if (
+      field === "unpaidConsent" ||
+      field === "inPersonConsent" ||
+      field === "hasIdProof"
+    ) {
       return String(value) !== "true";
     }
     return value === undefined || value === null || String(value).trim() === "";

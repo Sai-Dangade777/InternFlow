@@ -5,14 +5,10 @@ import ReferralIntake from "./pages/ReferralIntake.jsx";
 import Workflow from "./pages/Workflow.jsx";
 import Onboarding from "./pages/Onboarding.jsx";
 import Compliance from "./pages/Compliance.jsx";
-import Login from "./pages/auth/Login.jsx";
-import Register from "./pages/auth/Register.jsx";
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/auth/login" element={<Login />} />
-      <Route path="/auth/register" element={<Register />} />
       <Route element={<Layout />}>
         <Route index element={<Overview />} />
         <Route path="referrals" element={<ReferralIntake />} />

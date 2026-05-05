@@ -34,17 +34,33 @@ router.post("/evaluate", async (req, res, next) => {
 router.post("/validate-referral", async (req, res, next) => {
   try {
     const payload = req.body || {};
-    const duplicateMatches = await Candidate.find({
-      $or: [{ email: payload.email }, { phone: payload.phone }]
-    })
-      .select("name email phone")
-      .lean();
+    const duplicateConditions = [];
+    if (payload.email) {
+      duplicateConditions.push({ email: payload.email });
+    }
+    if (payload.phone) {
+      duplicateConditions.push({ phone: payload.phone });
+    }
+
+    const duplicateMatches = duplicateConditions.length
+      ? await Candidate.find({ $or: duplicateConditions })
+          .select("name email phone status domain createdAt")
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .lean()
+      : [];
 
     const result = await validateReferralWithAI({
       payload,
       duplicateMatches
     });
-    res.json(result);
+    res.json({
+      ...result,
+      data: {
+        ...(result.data || {}),
+        duplicateMatches
+      }
+    });
   } catch (error) {
     next(error);
   }

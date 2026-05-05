@@ -10,7 +10,6 @@ import WorkflowStepper from "./WorkflowStepper.jsx";
 
 const statusStyles = {
   Referral: "bg-slate-800 text-slate-300",
-  "HR Review": "bg-blue-500/10 text-blue-300",
   NDA: "bg-amber-500/10 text-amber-300",
   Active: "bg-emerald-500/10 text-emerald-300",
   Completed: "bg-purple-500/10 text-purple-300"
@@ -18,7 +17,7 @@ const statusStyles = {
 
 const fallbackCandidates = [
   { name: "Aisha Khan", status: "Referral", score: 78 },
-  { name: "Rohan Mehta", status: "HR Review", score: 84 },
+  { name: "Rohan Mehta", status: "NDA", score: 84 },
   { name: "Lila Park", status: "NDA", score: 72 },
   { name: "Marcus Chen", status: "Active", score: 91 },
   { name: "Sara Patel", status: "Completed", score: 88 }
@@ -133,7 +132,7 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
       } catch (error) {
         try {
           const externalUsers = await fetchExternalCandidates();
-          const statuses = ["Referral", "HR Review", "NDA", "Active", "Completed"];
+          const statuses = ["Referral", "NDA", "Active", "Completed"];
           const mapped = externalUsers.map((user, index) => ({
             _id: `external-${user.id}`,
             name: user.name,
@@ -265,7 +264,9 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
     if (!selectedCandidate?._id) {
       return;
     }
-    const currentIndex = statusSteps.indexOf(selectedCandidate.status || statusSteps[0]);
+    const currentIndex = statusSteps.indexOf(
+      selectedCandidate.status === "HR Review" ? "NDA" : selectedCandidate.status || statusSteps[0]
+    );
     const nextStatus = statusSteps[currentIndex + 1];
     if (!nextStatus) {
       return;
@@ -301,7 +302,10 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
     }
   };
 
-  const currentStep = Math.max(0, statusSteps.indexOf(selectedCandidate?.status || statusSteps[0]));
+  const currentStep = Math.max(
+    0,
+    statusSteps.indexOf(selectedCandidate?.status === "HR Review" ? "NDA" : selectedCandidate?.status || statusSteps[0])
+  );
   const nextStatus = statusSteps[currentStep + 1];
 
   return (

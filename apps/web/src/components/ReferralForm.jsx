@@ -28,8 +28,10 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
   const [formState, setFormState] = useState(initialState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [possibleMatches, setPossibleMatches] = useState([]);
   const [isParsing, setIsParsing] = useState(false);
   const [parseMessage, setParseMessage] = useState("");
+  const [parseConfidence, setParseConfidence] = useState(null);
   const [validation, setValidation] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
   const resolvedApiUrl = apiUrl || "http://localhost:4000";
@@ -47,6 +49,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
     event.preventDefault();
     setIsSubmitting(true);
     setStatusMessage("");
+    setPossibleMatches([]);
 
     const payload = new FormData();
     payload.append("name", formState.name.trim());
@@ -80,10 +83,15 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
       });
 
       if (!response.ok) {
-        throw new Error("Unable to submit referral");
+        const errorPayload = await response.json().catch(() => null);
+        if (response.status === 409) {
+          setPossibleMatches(errorPayload?.possibleMatches || []);
+        }
+        throw new Error(errorPayload?.error || "Unable to submit referral");
       }
 
       setStatusMessage("Referral submitted successfully.");
+      setParseConfidence(null);
       setFormState(initialState);
     } catch (error) {
       setStatusMessage(error.message || "Something went wrong. Please try again.");
@@ -105,6 +113,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
         body: JSON.stringify({ resumeText: formState.resumeText })
       });
       const parsed = response.data || {};
+      const confidence = response.meta?.confidence;
       setFormState((previous) => ({
         ...previous,
         name: previous.name || parsed.name || previous.name,
@@ -113,8 +122,10 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
         skills: previous.skills || (parsed.skills ? parsed.skills.join(", ") : previous.skills),
         education: parsed.education || previous.education
       }));
+      setParseConfidence(typeof confidence === "number" ? confidence : null);
       setParseMessage("AI resume parsing applied.");
     } catch (error) {
+      setParseConfidence(null);
       setParseMessage("Unable to parse resume. Try again or submit manually.");
     } finally {
       setIsParsing(false);
@@ -143,6 +154,7 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
         })
       });
       setValidation(response.data || null);
+      setPossibleMatches(response.data?.duplicateMatches || []);
     } catch (error) {
       setValidation({
         duplicateRisk: "medium",
@@ -245,6 +257,11 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
               <span className="text-xs text-slate-400">{parseMessage}</span>
             ) : null}
           </div>
+          {typeof parseConfidence === "number" ? (
+            <p className="text-xs text-slate-500">
+              Parse confidence: {Math.round(parseConfidence * 100)}%
+            </p>
+          ) : null}
           {formState.education?.length ? (
             <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-300">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Education parsed</p>
@@ -469,6 +486,18 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
                   Duplicate risk:{" "}
                   <span className="font-semibold text-emerald-200">{validation.duplicateRisk}</span>
                 </p>
+                {possibleMatches.length ? (
+                  <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-100">
+                    <p className="font-semibold">Possible duplicates</p>
+                    <ul className="mt-1 space-y-1 text-[11px]">
+                      {possibleMatches.map((item) => (
+                        <li key={item._id}>
+                          {item.name} ({item.email || "no-email"}, {item.phone || "no-phone"})
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {validation.missingFields?.length ? (
                   <p className="mt-1 text-slate-400">
                     Missing fields: {validation.missingFields.join(", ")}
@@ -492,6 +521,18 @@ export default function ReferralForm({ apiUrl = import.meta.env.VITE_API_URL }) 
         </button>
         {statusMessage ? (
           <p className="text-sm text-slate-300">{statusMessage}</p>
+        ) : null}
+        {possibleMatches.length ? (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+            <p className="font-semibold">Possible duplicate referral</p>
+            <ul className="mt-2 space-y-1">
+              {possibleMatches.map((item) => (
+                <li key={`submit-dup-${item._id}`}>
+                  {item.name} ({item.email || "no-email"}, {item.phone || "no-phone"})
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </form>
     </section>

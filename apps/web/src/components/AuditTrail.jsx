@@ -3,9 +3,8 @@ export default function AuditTrail({ candidate }) {
   const keyDates = [
     { label: "Referral created", date: candidate?.createdAt },
     { label: "NDA signed", date: candidate?.ndaSignedAt },
-    { label: "Joining form submitted", date: candidate?.joiningForm?.submittedAt || candidate?.joiningForm?.submittedAt },
-    { label: "Access provisioned", date: candidate?.accessProvisionedAt },
-    { label: "HR reviewed", date: candidate?.hrReviewedAt },
+    { label: "Joining form submitted", date: candidate?.joiningForm?.submittedAt },
+    { label: "Access provisioned", date: candidate?.accessProvisioning?.provisionedAt },
     { label: "Certificate issued", date: candidate?.certificate?.issuedAt }
   ].filter((d) => d.date);
 

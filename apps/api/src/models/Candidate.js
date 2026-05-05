@@ -32,6 +32,7 @@ const contactSchema = new mongoose.Schema(
 const joiningFormSchema = new mongoose.Schema(
   {
     status: { type: String, enum: ["draft", "submitted"], default: "draft" },
+    submittedAt: { type: Date, default: null },
     phone: { type: String, default: "" },
     address: { type: String, default: "" },
     emergencyContact: { type: String, default: "" },
@@ -114,17 +115,18 @@ const candidateSchema = new mongoose.Schema(
     availability: { type: String, default: "" },
     referrer: { type: contactSchema, default: () => ({}) },
     mentor: { type: contactSchema, default: () => ({}) },
+    domain: { type: String, default: "" },
+    hasIdProof: { type: Boolean, default: false },
     unpaidConsent: { type: Boolean, default: false },
     inPersonConsent: { type: Boolean, default: false },
     joiningLocation: { type: String, default: "" },
     internshipDurationWeeks: { type: Number, default: null },
     internshipStartDate: { type: Date, default: null },
     internshipEndDate: { type: Date, default: null },
-    projectOverview: { type: String, default: "" },
     relationshipDeclaration: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["Referral", "HR Review", "NDA", "Active", "Completed"],
+      enum: ["Referral", "NDA", "Active", "Completed"],
       default: "Referral"
     },
     score: { type: Number, default: null },

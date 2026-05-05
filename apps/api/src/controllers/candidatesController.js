@@ -190,10 +190,6 @@ export const updateCandidateStatus = async (req, res, next) => {
     candidate.status = status;
     candidate.timeline.push({ stage: status, note });
 
-    if (status === "HR Review") {
-      candidate.hrReviewedAt = new Date();
-    }
-
     if (status === "NDA") {
       candidate.nda.status = candidate.nda.status === "Signed" ? "Signed" : "Issued";
     }
@@ -235,12 +231,16 @@ export const updateJoiningForm = async (req, res, next) => {
       candidate.joiningForm.status === "submitted" && Boolean(candidate.joiningForm.lockedAt);
 
     if (isLocked && ((status && status !== "submitted") || restrictedUpdates)) {
-      return res.status(409).json({ error: "Joining form is locked for HR review." });
+      return res.status(409).json({ error: "Joining form is locked after submission." });
     }
 
     candidate.joiningForm = {
       ...candidate.joiningForm,
       status: status || candidate.joiningForm.status,
+      submittedAt:
+        status === "submitted" && !candidate.joiningForm.submittedAt
+          ? new Date()
+          : candidate.joiningForm.submittedAt,
       phone: phone ?? candidate.joiningForm.phone,
       address: address ?? candidate.joiningForm.address,
       emergencyContact: emergencyContact ?? candidate.joiningForm.emergencyContact,
@@ -283,7 +283,7 @@ export const updateJoiningForm = async (req, res, next) => {
       await createNotificationEntry({
         type: "onboarding",
         subject: "Joining form submitted",
-        body: `${candidate.name} submitted the joining form for HR review.`,
+        body: `${candidate.name} submitted the joining form for onboarding.`,
         candidateId: candidate._id
       });
     }
@@ -358,6 +358,9 @@ export const updateAccessProvisioning = async (req, res, next) => {
     candidate.accessProvisioning.adAccount = adAccount || candidate.accessProvisioning.adAccount;
     if (status === "Provisioned") {
       candidate.accessProvisioning.provisionedAt = new Date();
+      if (!candidate.joiningForm.submittedAt) {
+        candidate.joiningForm.submittedAt = candidate.accessProvisioning.provisionedAt;
+      }
     }
     if (status === "Deactivated") {
       candidate.accessProvisioning.deactivatedAt = new Date();
@@ -577,12 +580,12 @@ export const seedDemoCandidates = async (req, res, next) => {
         phone: "555-0102",
         skills: ["Node.js", "MongoDB", "AWS"],
         availability: "May 2026, 10 weeks",
-        status: "HR Review",
+        status: "NDA",
         score: 84,
         readinessExplanation: "Backend stack experience with strong project exposure.",
         timeline: [
           { stage: "Referral", note: "Referred by engineering manager." },
-          { stage: "HR Review", note: "HR screening scheduled." }
+          { stage: "NDA", note: "NDA issued for signing." }
         ]
       },
       {

@@ -2,6 +2,15 @@ import Notification from "../models/Notification.js";
 import AuditLog from "../models/AuditLog.js";
 import Candidate from "../models/Candidate.js";
 
+const ACTIVE_STATUSES = ["Referral", "NDA", "Active", "Completed"];
+
+const normalizeWebhookStatus = (value) => {
+  if (value === "HR Review") {
+    return "NDA";
+  }
+  return ACTIVE_STATUSES.includes(value) ? value : undefined;
+};
+
 const isAuthorized = (req) => {
   const secret = process.env.N8N_WEBHOOK_SECRET;
   if (!secret) {
@@ -69,8 +78,7 @@ export const handleN8nWebhook = async (req, res, next) => {
             .map((skill) => skill.trim())
             .filter(Boolean);
 
-      const allowedStatuses = ["Referral", "HR Review", "NDA", "Active", "Completed"];
-      const normalizedStatus = allowedStatuses.includes(status) ? status : undefined;
+      const normalizedStatus = normalizeWebhookStatus(status);
 
       const resolvedReferrer = referrer || {
         name: referrerName || "",
@@ -90,6 +98,8 @@ export const handleN8nWebhook = async (req, res, next) => {
         phone: phone || "",
         skills: skillsList,
         availability,
+        domain: payload?.domain || "",
+        hasIdProof: String(payload?.hasIdProof) === "true",
         unpaidConsent: String(unpaidConsent) === "true",
         inPersonConsent: String(inPersonConsent) === "true",
         joiningLocation,
@@ -98,7 +108,6 @@ export const handleN8nWebhook = async (req, res, next) => {
           : null,
         internshipStartDate: internshipStartDate ? new Date(internshipStartDate) : null,
         internshipEndDate: internshipEndDate ? new Date(internshipEndDate) : null,
-        projectOverview,
         relationshipDeclaration,
         referrer: resolvedReferrer,
         mentor: resolvedMentor,
@@ -151,6 +160,92 @@ export const handleN8nWebhook = async (req, res, next) => {
     });
 
     return res.json({ status: "ok", notificationId: notification._id });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const handleNdaSignatureWebhook = async (req, res, next) => {
+  try {
+    if (!isAuthorized(req)) {
+      return res.status(401).json({ error: "Invalid webhook secret." });
+    }
+
+    const payload = req.body || {};
+    const candidateId = payload.candidateId || payload.candidate?.id;
+    const email = payload.email || payload.candidate?.email;
+    const provider = payload.provider || "esign";
+    const envelopeId = payload.envelopeId || payload.envelope_id || "";
+    const rawStatus = String(payload.status || payload.event || "").toLowerCase();
+    const signed = ["signed", "completed", "success"].includes(rawStatus);
+    const declined = ["declined", "rejected", "voided"].includes(rawStatus);
+
+    if (!candidateId && !email) {
+      return res.status(400).json({ error: "candidateId or email is required." });
+    }
+
+    const lookup = candidateId ? { _id: candidateId } : { email };
+    const candidate = await Candidate.findOne(lookup);
+
+    if (!candidate) {
+      return res.status(404).json({ error: "Candidate not found." });
+    }
+
+    if (signed) {
+      const signedAt = payload.signedAt ? new Date(payload.signedAt) : new Date();
+      candidate.nda.status = "Signed";
+      candidate.nda.signedAt = signedAt;
+      candidate.ndaSignedAt = signedAt;
+      candidate.sla.ndaStatus = "met";
+      if (candidate.status === "Referral") {
+        candidate.status = "NDA";
+      }
+      candidate.timeline.push({
+        stage: "NDA",
+        note: `NDA signed via ${provider}${envelopeId ? ` (${envelopeId})` : ""}.`
+      });
+    } else if (declined) {
+      candidate.nda.status = "Declined";
+      candidate.timeline.push({
+        stage: "NDA",
+        note: `NDA declined via ${provider}${envelopeId ? ` (${envelopeId})` : ""}.`
+      });
+    } else {
+      candidate.timeline.push({
+        stage: "NDA",
+        note: `NDA webhook received from ${provider}${envelopeId ? ` (${envelopeId})` : ""} with status ${rawStatus || "unknown"}.`
+      });
+    }
+
+    await candidate.save();
+
+    await AuditLog.create({
+      action: "webhook.nda.signature",
+      actor: provider,
+      metadata: {
+        status: rawStatus || "unknown",
+        envelopeId
+      },
+      candidateId: candidate._id
+    });
+
+    if (signed) {
+      await Notification.create({
+        type: "nda",
+        channel: "email",
+        status: "pending",
+        recipient: candidate.email,
+        subject: "NDA signed",
+        body: `${candidate.name} has completed NDA e-signature.`,
+        candidateId: candidate._id
+      });
+    }
+
+    return res.json({
+      status: "ok",
+      candidateId: candidate._id,
+      ndaStatus: candidate.nda.status
+    });
   } catch (error) {
     return next(error);
   }

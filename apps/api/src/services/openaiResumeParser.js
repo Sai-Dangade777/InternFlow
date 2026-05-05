@@ -9,6 +9,26 @@ Return a strict JSON object with keys:
 - education: array of objects with { degree, institution, year }
 If a field is missing, use an empty string or empty array.`;
 
+const computeParseConfidence = (data = {}) => {
+  let score = 0;
+  if (data.name) {
+    score += 0.2;
+  }
+  if (data.email) {
+    score += 0.25;
+  }
+  if (data.phone) {
+    score += 0.2;
+  }
+  if (Array.isArray(data.skills) && data.skills.length > 0) {
+    score += 0.2;
+  }
+  if (Array.isArray(data.education) && data.education.length > 0) {
+    score += 0.15;
+  }
+  return Number(Math.min(1, score).toFixed(2));
+};
+
 export const parseResumeWithOpenAI = async ({ resumeText, apiKey }) => {
   if (!resumeText) {
     throw new Error("resumeText is required");
@@ -20,14 +40,18 @@ export const parseResumeWithOpenAI = async ({ resumeText, apiKey }) => {
     !(apiKey || process.env.CLAUDE_API_KEY);
 
   if (isMock) {
+    const mockData = {
+      name: "Demo Candidate",
+      email: "demo.candidate@internflow.demo",
+      phone: "+1 555 0100",
+      skills: ["React", "Node.js", "MongoDB"],
+      education: [{ degree: "B.Tech", institution: "Demo University", year: "2025" }]
+    };
     return {
       prompt: RESUME_PARSE_PROMPT,
-      data: {
-        name: "Demo Candidate",
-        email: "demo.candidate@internflow.demo",
-        phone: "+1 555 0100",
-        skills: ["React", "Node.js", "MongoDB"],
-        education: [{ degree: "B.Tech", institution: "Demo University", year: "2025" }]
+      data: mockData,
+      meta: {
+        confidence: computeParseConfidence(mockData)
       }
     };
   }
@@ -59,7 +83,10 @@ export const parseResumeWithOpenAI = async ({ resumeText, apiKey }) => {
 
     return {
       prompt: RESUME_PARSE_PROMPT,
-      data: parsed
+      data: parsed,
+      meta: {
+        confidence: computeParseConfidence(parsed || {})
+      }
     };
   } catch (error) {
     const message = error?.message || "Failed to parse resume";

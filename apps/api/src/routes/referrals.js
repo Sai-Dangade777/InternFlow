@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
+import rateLimit from "express-rate-limit";
 import { createReferral } from "../controllers/referralsController.js";
 
 const router = Router();
@@ -24,6 +25,11 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-router.post("/", upload.single("resume"), createReferral);
+const createReferralLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10
+});
+
+router.post("/", createReferralLimiter, upload.single("resume"), createReferral);
 
 export default router;

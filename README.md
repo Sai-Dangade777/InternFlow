@@ -1,92 +1,153 @@
-Intern Flow
-Intern Flow is a monorepo containing an Express API and a React + Vite web app for managing intern referrals, onboarding, and AI-assisted candidate evaluation.
+# 🚀 InternFlow
 
-Quick Start
-Clone the repo and install:
-git clone <repo-url>
+**InternFlow** is a monorepo containing:
+
+- ⚙️ **Express API** — backend for intern management  
+- 🌐 **React + Vite Web App** — frontend dashboard  
+- 🤖 **AI-assisted candidate evaluation system**
+
+It helps manage:
+- Intern referrals  
+- Onboarding workflows  
+- Candidate evaluation (AI + automation)
+
+---
+
+## ⚡ Quick Start
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/Sai-Dangade777/InternFlow.git
 cd InternFlow
 npm install
+2. Run Development Servers
 
-Run development servers (open two terminals):
-npm run dev:api   # API with nodemon
-npm run dev:web   # Web (Vite)
+👉 Open 2 terminals
 
-Alternative (run from anywhere using --prefix):
+npm run dev:api   # Backend (nodemon)
+npm run dev:web   # Frontend (Vite)
+💡 Alternative (run from anywhere)
 npm --prefix "D:\path\to\InternFlow" run dev:api
 npm --prefix "D:\path\to\InternFlow" run dev:web
-
-Build web for production:
+3. Build for Production
 npm run build
-
-Start API (production):
+4. Start API (Production)
 npm run start -w apps/api
+🧰 Prerequisites
+Node.js v18+
+npm v9+ (or Yarn / pnpm)
+MongoDB (local or remote)
 
-Prerequisites
-Node.js v18+ and npm v9+ (or Yarn/pnpm)
-MongoDB (local or remote). Example URI: mongodb://localhost:27017/internflow
-Optional: AI provider keys (Claude/OpenAI) and n8n for workflows
-Repository Layout
-Root workspace scripts: package.json
-API: apps/api — Express server, controllers, models, services
-Web: apps/web — React + Vite SPA
-Docs: docs/ — workflows and auxiliary docs
-Environment
-API env example: apps/api/.env.example
-Key vars: PORT, MONGODB_URI, CLAUDE_API_KEY, CORS_ORIGIN, N8N_WEBHOOK_SECRET, DEMO_MODE, AI_MODE
-Web env example: apps/web/.env.example
-Key var: VITE_API_URL
+Example MongoDB URI:
 
-Running Locally (recommended)
-1.Start MongoDB (local or Docker):
+mongodb://localhost:27017/internflow
+
+Optional:
+
+Claude / OpenAI API keys
+n8n (for workflows)
+📁 Repository Structure
+InternFlow/
+│
+├── apps/
+│   ├── api/        # Express backend
+│   └── web/        # React + Vite frontend
+│
+├── docs/           # Documentation & workflows
+├── package.json    # Root workspace config
+🔐 Environment Setup
+API (apps/api/.env)
+
+Copy:
+
+cp apps/api/.env.example apps/api/.env
+
+Key variables:
+
+PORT=
+MONGODB_URI=
+CLAUDE_API_KEY=
+CORS_ORIGIN=
+N8N_WEBHOOK_SECRET=
+DEMO_MODE=
+AI_MODE=
+Web (apps/web/.env)
+
+Copy:
+
+cp apps/web/.env.example apps/web/.env
+
+Key variable:
+
+VITE_API_URL=
+🧪 Running Locally (Recommended)
+1. Start MongoDB (Docker)
 docker run -d -p 27017:27017 --name internflow-mongo mongo:6
+2. Setup Environment Files
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
 
-2. Copy env examples and edit:
-cp apps\api\.env.example apps\api\.env
-cp apps\web\.env.example apps\web\.env
-# then edit values as needed
+Edit values as needed.
 
-3.Start dev servers:
+3. Start Servers
 npm run dev:api
 npm run dev:web
+📜 Available Scripts
+npm run dev:api        # Start backend (nodemon)
+npm run dev:web        # Start frontend (Vite)
+npm run build          # Build frontend
+npm run start -w apps/api  # Run backend (production)
+🛠 Troubleshooting
+❌ ENOENT: Could not read package.json
 
-Common Scripts
-npm run dev:api — start API with nodemon
-npm run dev:web — start Vite dev server
-npm run build — build web for production
-npm run start -w apps/api — run API in production mode
+👉 You are in the wrong directory
 
-Troubleshooting
-ENOENT: Could not read package.json
-Cause: running npm run from the wrong directory. Fix:
 cd "D:\InternFlow\InternFlow"
 npm run dev:web
 npm run dev:api
-
-Or run with --prefix:
+💡 Alternative
 npm --prefix "D:\InternFlow\InternFlow" run dev:web
 npm --prefix "D:\InternFlow\InternFlow" run dev:api
+❌ CORS Errors
 
-CORS errors: set CORS_ORIGIN in apps/api/.env
-DB errors: confirm MONGODB_URI and MongoDB availability
-Uploads: ensure apps/api/uploads exists and is writable
+Set:
 
-AI & Integrations
-AI features require provider API keys set in the API env (CLAUDE_API_KEY or similar).
-n8n webhook integration uses N8N_WEBHOOK_SECRET.
-Toggle AI behavior via AI_MODE and DEMO_MODE in apps/api/.env.
+CORS_ORIGIN
 
-Contributing
-Branch from main, implement changes, run both servers locally, open a PR with a clear description.
-Add tests under apps/api/tests and apps/web/tests where applicable.
+in apps/api/.env
 
-Deployment Notes
-Use a process manager (e.g., pm2) or Docker for the API.
-Serve apps/web build via static host or CDN.
-Keep secrets in environment/secret manager; never commit .env files.
+❌ Database Errors
+Check MONGODB_URI
+Ensure MongoDB is running
+❌ Upload Issues
 
-Useful Links
-API entry: apps/api/src/app.js
-API server: apps/api/src/server.js
-DB config: apps/api/src/config/db.js
-Frontend entry: apps/web/src/main.jsx
+Ensure directory exists:
 
+apps/api/uploads
+🤖 AI & Integrations
+Requires API keys (CLAUDE_API_KEY, etc.)
+n8n integration uses:
+N8N_WEBHOOK_SECRET
+Modes:
+AI_MODE → controls AI behavior
+DEMO_MODE → demo/testing mode
+🤝 Contributing
+Create a branch from main
+Make changes
+Test locally (API + Web)
+Open a PR with clear description
+
+👉 Add tests where applicable:
+
+apps/api/tests
+apps/web/tests
+🚀 Deployment Notes
+Use PM2 / Docker for backend
+Serve frontend via static hosting / CDN
+Never commit .env files
+Use environment/secret managers
+🔗 Useful Paths
+API Entry → apps/api/src/app.js
+API Server → apps/api/src/server.js
+DB Config → apps/api/src/config/db.js
+Frontend Entry → apps/web/src/main.jsx

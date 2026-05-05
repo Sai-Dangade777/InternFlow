@@ -145,8 +145,12 @@ const createNotificationEntry = async ({
 export const listCandidates = async (req, res, next) => {
   try {
     const filter = {};
-    if (req.query.status) {
-      filter.status = req.query.status;
+    if (req.query.status !== undefined) {
+      const allowedStatuses = new Set(["Completed", "Active", "Pending"]);
+      if (typeof req.query.status !== "string" || !allowedStatuses.has(req.query.status)) {
+        return res.status(400).json({ message: "Invalid status filter" });
+      }
+      filter.status = { $eq: req.query.status };
     }
 
     const candidates = await Candidate.find(filter).sort({ createdAt: -1 }).lean();

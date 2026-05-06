@@ -1,6 +1,9 @@
 import Candidate from "../models/Candidate.js";
 import Notification from "../models/Notification.js";
 import AuditLog from "../models/AuditLog.js";
+import { generateCandidateReadinessInsight, assessNdaReadiness, assessWorkflowRisk } from "../services/aiInsightService.js";
+import { sendNdaSigningEmail, sendOfferLetterEmail, sendCertificateEmail } from "../services/mailService.js";
+import { generateOfferLetterPdf, generateCertificatePdf, generateClosureLetterPdf } from "../services/pdfService.js";
 
 const buildSummary = (candidates) => {
   const summary = {
@@ -24,6 +27,15 @@ const buildSummary = (candidates) => {
 };
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+// Helper to generate Non-Worker ID
+const generateNonWorkerId = async () => {
+  const year = new Date().getFullYear();
+  const count = await Candidate.countDocuments({
+    "joiningForm.nonWorkerId": { $regex: `^NW-${year}` }
+  });
+  return `NW-${year}-${String(count + 1).padStart(4, "0")}`;
+};
 
 const evaluateSlaItem = ({ label, dueAt, met }) => {
   if (!dueAt) {
@@ -183,6 +195,82 @@ export const updateCandidateStatus = async (req, res, next) => {
       return res.status(404).json({ error: "Candidate not found." });
     }
 
+    const previousStatus = candidate.status;
+    candidate.status = status;
+
+    // Auto-trigger workflows based on status change
+    if (status === "NDA" && previousStatus !== "NDA") {
+      candidate.nda = candidate.nda || {};
+      candidate.nda.status = "Issued";
+      candidate.nda.issuedAt = new Date();
+
+      // Send NDA signing email
+      const ndaLink = `${process.env.CORS_ORIGIN || "http://localhost:5173"}/nda-sign/${candidate._id}`;
+      try {
+        await sendNdaSigningEmail(candidate.email, candidate.name, ndaLink);
+      } catch (emailError) {
+        console.warn("Failed to send NDA email:", emailError.message);
+      }
+
+      const notification = new Notification({
+        type: "nda-issued",
+        title: "NDA Ready for Signing",
+        message: `NDA has been issued to ${candidate.name}. Email sent with signing link.`,
+        candidateId: candidate._id,
+        referenceId: candidate._id,
+        read: false
+      });
+      await notification.save();
+    }
+
+    // Auto-generate Non-Worker ID when transitioning to Active
+    if (status === "Active" && previousStatus !== "Active") {
+      if (!candidate.joiningForm?.nonWorkerId) {
+        candidate.joiningForm = candidate.joiningForm || {};
+        candidate.joiningForm.nonWorkerId = await generateNonWorkerId();
+
+        const notification = new Notification({
+          type: "non-worker-id-generated",
+          title: "Non-Worker ID Generated",
+          message: `Non-Worker ID ${candidate.joiningForm.nonWorkerId} generated for ${candidate.name}`,
+          candidateId: candidate._id,
+          referenceId: candidate._id,
+          read: false
+        });
+        await notification.save();
+      }
+
+      candidate.lifecycle = candidate.lifecycle || {};
+      candidate.lifecycle.startDate = new Date();
+
+      const notification = new Notification({
+        type: "internship-started",
+        title: "Internship Started",
+        message: `${candidate.name}'s internship has officially started`,
+        candidateId: candidate._id,
+        referenceId: candidate._id,
+        read: false
+      });
+      await notification.save();
+    }
+
+    if (status === "Completed") {
+      candidate.lifecycle = candidate.lifecycle || {};
+      candidate.lifecycle.endDate = new Date();
+      candidate.lifecycle.closureDate = new Date();
+
+      const notification = new Notification({
+        type: "internship-completed",
+        title: "Internship Completed",
+        message: `${candidate.name}'s internship has been marked as completed`,
+        candidateId: candidate._id,
+        referenceId: candidate._id,
+        read: false
+      });
+      await notification.save();
+    }
+    }
+
     candidate.status = status;
     candidate.timeline.push({ stage: status, note });
 
@@ -244,6 +332,8 @@ export const updateJoiningForm = async (req, res, next) => {
       nonWorkerId: nonWorkerId ?? candidate.joiningForm.nonWorkerId,
       governmentId: governmentId ?? candidate.joiningForm.governmentId,
       declarationAccepted: declarationAccepted ?? candidate.joiningForm.declarationAccepted
+      aadhaarNumber: req.body.aadhaarNumber ?? candidate.joiningForm.aadhaarNumber,
+      panCardNumber: req.body.panCardNumber ?? candidate.joiningForm.panCardNumber
     };
 
     candidate.timeline.push({
@@ -296,7 +386,7 @@ export const updateJoiningForm = async (req, res, next) => {
 export const updateNdaStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, signedAt } = req.body;
 
     const candidate = await Candidate.findById(id);
     if (!candidate) {
@@ -320,6 +410,20 @@ export const updateNdaStatus = async (req, res, next) => {
       candidate.ndaSignedAt = candidate.nda.signedAt;
       candidate.sla.ndaStatus = "met";
       candidate.status = "NDA";
+
+      if (!candidate.joiningForm.nonWorkerId) {
+        candidate.joiningForm.nonWorkerId = await generateNonWorkerId();
+        candidate.timeline.push({
+          stage: "Onboarding",
+          note: `Non-Worker ID generated: ${candidate.joiningForm.nonWorkerId}.`
+        });
+        await createNotificationEntry({
+          type: "onboarding",
+          subject: "Non-Worker ID generated",
+          body: `${candidate.name} has been assigned ${candidate.joiningForm.nonWorkerId} after NDA signing.`,
+          candidateId: candidate._id
+        });
+      }
     }
 
     candidate.timeline.push({ stage: "NDA", note: `NDA ${status || "updated"}.` });
@@ -499,46 +603,53 @@ export const generateCandidateLetter = async (req, res, next) => {
       return res.status(404).json({ error: "Candidate not found." });
     }
 
-    const templates = {
-      offer: buildOfferLetter,
-      "start-confirmation": buildStartConfirmation,
-      closure: buildClosureLetter
-    };
-    const keyMap = {
-      offer: "offer",
-      "start-confirmation": "startConfirmation",
-      closure: "closure"
-    };
+    let pdfBuffer;
+    let fileName;
 
-    const template = templates[type];
-    if (!template) {
+    if (type === "offer") {
+      pdfBuffer = await generateOfferLetterPdf(candidate);
+      fileName = `offer-letter-${candidate._id}.pdf`;
+
+      try {
+        await sendOfferLetterEmail(candidate.email, candidate.name, pdfBuffer, fileName);
+      } catch (emailError) {
+        console.warn("Failed to send offer letter email:", emailError.message);
+      }
+
+      candidate.joiningForm = candidate.joiningForm || {};
+      candidate.joiningForm.generatedAt = new Date();
+    } else if (type === "certificate") {
+      pdfBuffer = await generateCertificatePdf(candidate, candidate.certificate?.documentBody);
+      fileName = `certificate-${candidate._id}.pdf`;
+
+      try {
+        await sendCertificateEmail(candidate.email, candidate.name, pdfBuffer, fileName);
+      } catch (emailError) {
+        console.warn("Failed to send certificate email:", emailError.message);
+      }
+
+      candidate.certificate = candidate.certificate || {};
+      candidate.certificate.issuedAt = new Date();
+      candidate.certificate.issuedBy = req.user?.email || "system";
+    } else if (type === "closure") {
+      pdfBuffer = await generateClosureLetterPdf(candidate);
+      fileName = `closure-letter-${candidate._id}.pdf`;
+
+      candidate.lifecycle = candidate.lifecycle || {};
+      candidate.lifecycle.closureDate = new Date();
+    } else {
       return res.status(400).json({ error: "Invalid letter type." });
     }
 
-    const letterKey = keyMap[type];
-    const body = template(candidate);
-    candidate.letters[letterKey] = {
-      generatedAt: new Date(),
-      generatedBy: req.user?.email || "system",
-      body
-    };
-    candidate.timeline.push({
-      stage: "Communications",
-      note: `${letterKey} letter generated.`
-    });
     await candidate.save();
 
-    await createAuditEntry({
-      action: "candidate.letter.generated",
-      metadata: { type },
-      candidateId: candidate._id
-    });
-    await createNotificationEntry({
-      type: "communications",
-      subject: `${letterKey} letter ready`,
-      body: `A ${letterKey} letter is ready for ${candidate.name}.`,
-      candidateId: candidate._id
-    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    next(error);
+  }
+};
 
     return res.json({ item: candidate, letter: candidate.letters[letterKey] });
   } catch (error) {

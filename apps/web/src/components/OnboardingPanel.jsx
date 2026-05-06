@@ -6,6 +6,8 @@ export default function OnboardingPanel({ candidate, onUpdated }) {
     phone: candidate?.joiningForm?.phone || "",
     address: candidate?.joiningForm?.address || "",
     emergencyContact: candidate?.joiningForm?.emergencyContact || "",
+    aadhaarNumber: candidate?.joiningForm?.aadhaarNumber || "",
+    panCardNumber: candidate?.joiningForm?.panCardNumber || "",
     nonWorkerId: candidate?.joiningForm?.nonWorkerId || "",
     governmentId: candidate?.joiningForm?.governmentId || "",
     declarationAccepted: candidate?.joiningForm?.declarationAccepted || false
@@ -18,6 +20,8 @@ export default function OnboardingPanel({ candidate, onUpdated }) {
       phone: candidate?.joiningForm?.phone || "",
       address: candidate?.joiningForm?.address || "",
       emergencyContact: candidate?.joiningForm?.emergencyContact || "",
+      aadhaarNumber: candidate?.joiningForm?.aadhaarNumber || "",
+      panCardNumber: candidate?.joiningForm?.panCardNumber || "",
       nonWorkerId: candidate?.joiningForm?.nonWorkerId || "",
       governmentId: candidate?.joiningForm?.governmentId || "",
       declarationAccepted: candidate?.joiningForm?.declarationAccepted || false
@@ -87,11 +91,28 @@ export default function OnboardingPanel({ candidate, onUpdated }) {
         />
         <div className="grid gap-3 md:grid-cols-2">
           <input
+            name="aadhaarNumber"
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            placeholder="Aadhaar number"
+            value={formState.aadhaarNumber}
+            onChange={handleChange}
+            disabled={isLocked}
+          />
+          <input
+            name="panCardNumber"
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            placeholder="PAN card number"
+            value={formState.panCardNumber}
+            onChange={handleChange}
+            disabled={isLocked}
+          />
+          <input
             name="nonWorkerId"
             className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
             placeholder="Non-Worker ID"
             value={formState.nonWorkerId}
             onChange={handleChange}
+            readOnly
           />
           <input
             name="governmentId"
@@ -133,7 +154,7 @@ export default function OnboardingPanel({ candidate, onUpdated }) {
       </div>
       {isLocked ? (
         <p className="mt-3 text-xs text-amber-300">
-          Form locked after submission. Admin can update Non-Worker ID and Government ID.
+          Form locked after submission. Non-Worker ID is generated automatically.
         </p>
       ) : null}
       {statusMessage ? <p className="mt-3 text-xs text-slate-400">{statusMessage}</p> : null}

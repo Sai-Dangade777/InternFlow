@@ -1,7 +1,12 @@
 const steps = [
   "Referral",
+  "HR Review",
+  "Joining Form",
   "NDA",
-  "Active",
+  "Non-Worker ID",
+  "Access Provisioning",
+  "Internship Active",
+  "Certificate",
   "Completed"
 ];
 
@@ -12,12 +17,14 @@ export default function WorkflowStepper({ currentStep, status }) {
       : status
       ? Math.max(0, steps.indexOf(status))
       : 0;
+  const progress = steps.length > 1 ? (resolvedStep / (steps.length - 1)) * 100 : 0;
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg">
       <h2 className="text-lg font-semibold">Workflow Status</h2>
-      <p className="mt-1 text-sm text-slate-400">
-        Track the internship pipeline at a glance.
-      </p>
+      <p className="mt-1 text-sm text-slate-400">Track the internship pipeline at a glance.</p>
+      <div className="mt-4 h-2 rounded-full bg-slate-800">
+        <div className="h-2 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 transition-all" style={{ width: `${progress}%` }} />
+      </div>
       <div className="mt-6 flex flex-col gap-5">
         {steps.map((step, index) => {
           const isActive = index === resolvedStep;
@@ -61,7 +68,7 @@ export default function WorkflowStepper({ currentStep, status }) {
                       isComplete
                         ? "w-full bg-emerald-400"
                         : isActive
-                        ? "w-1/2 bg-emerald-300"
+                        ? "w-2/3 bg-emerald-300"
                         : "w-0 bg-transparent"
                     }`}
                   />

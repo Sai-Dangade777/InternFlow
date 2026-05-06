@@ -7,6 +7,7 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("candidate");
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState("");
@@ -20,10 +21,10 @@ export default function Register() {
     try {
       const response = await fetchJson("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ name, email, password })
+        body: JSON.stringify({ name, email, password, role })
       });
       signIn({ ...response.user, token: response.token });
-      navigate("/", { replace: true });
+      navigate(`/${response.user.role}/dashboard`, { replace: true });
     } catch (error) {
       setErrorMessage("Unable to register. Ensure the API is running.");
     }
@@ -58,6 +59,17 @@ export default function Register() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
+          <select
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            value={role}
+            onChange={(event) => setRole(event.target.value)}
+          >
+            <option value="candidate">Candidate</option>
+            <option value="hr">HR</option>
+            <option value="it">IT</option>
+            <option value="compliance">Compliance</option>
+            <option value="admin">Admin</option>
+          </select>
           <button
             className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900"
             type="submit"

@@ -24,7 +24,8 @@ export default function Login() {
         body: JSON.stringify({ email, password })
       });
       signIn({ ...response.user, token: response.token });
-      navigate(from, { replace: true });
+      const target = from && from !== "/" ? from : `/${response.user.role}/dashboard`;
+      navigate(target, { replace: true });
     } catch (error) {
       setErrorMessage("Unable to sign in. Check API connection and credentials.");
     }

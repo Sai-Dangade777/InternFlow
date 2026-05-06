@@ -4,9 +4,22 @@ export const API_BASE =
 export const EXTERNAL_DATA_BASE = "https://jsonplaceholder.typicode.com";
 
 export const fetchJson = async (path, options = {}) => {
+  const storedAuth = localStorage.getItem("internflow_auth");
+  let token = "";
+
+  if (storedAuth) {
+    try {
+      const parsed = JSON.parse(storedAuth);
+      token = parsed?.token || parsed?.user?.token || "";
+    } catch {
+      token = "";
+    }
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {})
     },
     ...options

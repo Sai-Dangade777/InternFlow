@@ -37,6 +37,8 @@ const joiningFormSchema = new mongoose.Schema(
     phone: { type: String, default: "" },
     address: { type: String, default: "" },
     emergencyContact: { type: String, default: "" },
+    aadhaarNumber: { type: String, default: "" },
+    panCardNumber: { type: String, default: "" },
     nonWorkerId: { type: String, default: "" },
     governmentId: { type: String, default: "" },
     declarationAccepted: { type: Boolean, default: false },

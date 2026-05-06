@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import authRoutes from "./routes/auth.js";
 import healthRoutes from "./routes/health.js";
 import referralRoutes from "./routes/referrals.js";
 import candidateRoutes from "./routes/candidates.js";
@@ -45,6 +46,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/webhooks", webhookRoutes);
+app.use("/auth", authRoutes);
 app.use("/health", healthRoutes);
 app.use("/referrals", referralRoutes);
 app.use("/candidates", candidateRoutes);

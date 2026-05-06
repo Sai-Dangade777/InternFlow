@@ -1,6 +1,7 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import {
+  import { authenticate, requireRole } from "../middlewares/auth.js";
   listCandidates,
   getCandidateSummary,
   updateCandidateStatus,
@@ -30,14 +31,16 @@ const ndaStatusLimiter = rateLimit({
 });
 
 router.get("/", listCandidates);
-router.get("/summary", getCandidateSummary);
-router.post("/demo-seed", seedDemoCandidates);
-router.patch("/:id/status", updateCandidateStatus);
-router.patch("/:id/joining-form", updateJoiningForm);
-router.patch("/:id/nda", ndaStatusLimiter, updateNdaStatus);
-router.patch("/:id/access", accessProvisioningLimiter, updateAccessProvisioning);
-router.patch("/:id/lifecycle", updateLifecycle);
-router.patch("/:id/certificate", requestCertificate);
-router.post("/:id/letters/:type", generateCandidateLetter);
+  router.use(authenticate);
 
+  router.get("/", requireRole(["admin", "hr", "it", "compliance"]), listCandidates);
+  router.get("/summary", requireRole(["admin", "hr", "it", "compliance"]), getCandidateSummary);
+  router.post("/demo-seed", requireRole("admin"), seedDemoCandidates);
+  router.patch("/:id/status", requireRole(["admin", "hr"]), updateCandidateStatus);
+  router.patch("/:id/joining-form", requireRole(["admin", "hr", "candidate"]), updateJoiningForm);
+  router.patch("/:id/nda", requireRole(["admin", "hr", "candidate"]), ndaStatusLimiter, updateNdaStatus);
+  router.patch("/:id/access", requireRole(["admin", "it"]), accessProvisioningLimiter, updateAccessProvisioning);
+  router.patch("/:id/lifecycle", requireRole(["admin", "hr"]), updateLifecycle);
+  router.patch("/:id/certificate", requireRole(["admin", "hr", "candidate"]), requestCertificate);
+  router.post("/:id/letters/:type", requireRole(["admin", "hr"]), generateCandidateLetter);
 export default router;

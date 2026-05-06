@@ -202,9 +202,21 @@ export const handleNdaSignatureWebhook = async (req, res, next) => {
       if (candidate.status === "Referral") {
         candidate.status = "NDA";
       }
+      if (!candidate.joiningForm?.nonWorkerId) {
+        const year = new Date().getFullYear();
+        const count = await Candidate.countDocuments({
+          "joiningForm.nonWorkerId": { $regex: `^NW-${year}` }
+        });
+        candidate.joiningForm = candidate.joiningForm || {};
+        candidate.joiningForm.nonWorkerId = `NW-${year}-${String(count + 1).padStart(4, "0")}`;
+      }
       candidate.timeline.push({
         stage: "NDA",
         note: `NDA signed via ${provider}${envelopeId ? ` (${envelopeId})` : ""}.`
+      });
+      candidate.timeline.push({
+        stage: "Onboarding",
+        note: `Non-Worker ID generated: ${candidate.joiningForm.nonWorkerId}.`
       });
     } else if (declined) {
       candidate.nda.status = "Declined";

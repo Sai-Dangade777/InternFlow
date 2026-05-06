@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import { issueToken } from "../middlewares/auth.js";
 
+const allowedRoles = new Set(["admin", "hr", "it", "compliance", "candidate"]);
+
 const users = [
   {
     id: "admin",
@@ -12,9 +14,13 @@ const users = [
 ];
 
 export const registerUser = async (req, res) => {
-  const { name, email, password, role = "hr" } = req.body;
+  const { name, email, password, role = "candidate" } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
+  }
+
+  if (!allowedRoles.has(role)) {
+    return res.status(400).json({ error: "Invalid role." });
   }
 
   const existing = users.find((user) => user.email === email);
@@ -31,7 +37,7 @@ export const registerUser = async (req, res) => {
   };
   users.push(newUser);
 
-  const token = issueToken({ id: newUser.id, email, role: newUser.role });
+  const token = issueToken({ id: newUser.id, email, role: newUser.role, name: newUser.name });
   return res.json({ token, user: { name: newUser.name, email, role: newUser.role } });
 };
 
@@ -51,6 +57,17 @@ export const loginUser = async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials." });
   }
 
-  const token = issueToken({ id: user.id, email, role: user.role });
+  const token = issueToken({ id: user.id, email, role: user.role, name: user.name });
   return res.json({ token, user: { name: user.name, email, role: user.role } });
+};
+
+export const currentUser = async (req, res) => {
+  return res.json({
+    user: {
+      id: req.user.id,
+      email: req.user.email,
+      name: req.user.name || "",
+      role: req.user.role
+    }
+  });
 };

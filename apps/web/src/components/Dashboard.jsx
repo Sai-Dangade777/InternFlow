@@ -1,71 +1,91 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchExternalCandidates, fetchJson } from "../lib/api.js";
+import { fetchJson } from "../lib/api.js";
+import { useAuth } from "../auth/AuthContext.jsx";
 import OnboardingPanel from "./OnboardingPanel.jsx";
 import AccessPanel from "./AccessPanel.jsx";
-import NdaPanel from "./NdaPanel.jsx";
 import CertificatePanel from "./CertificatePanel.jsx";
 import DocumentsPanel from "./DocumentsPanel.jsx";
 import AuditTrail from "./AuditTrail.jsx";
 import WorkflowStepper from "./WorkflowStepper.jsx";
 
-const statusStyles = {
-  Referral: "bg-slate-800 text-slate-300",
-  NDA: "bg-amber-500/10 text-amber-300",
-  Active: "bg-emerald-500/10 text-emerald-300",
-  Completed: "bg-purple-500/10 text-purple-300"
-};
-
-const fallbackCandidates = [
-  { name: "Aisha Khan", status: "Referral", score: 78 },
-  { name: "Rohan Mehta", status: "NDA", score: 84 },
-  { name: "Lila Park", status: "NDA", score: 72 },
-  { name: "Marcus Chen", status: "Active", score: 91 },
-  { name: "Sara Patel", status: "Completed", score: 88 }
+const stageOrder = [
+  "Referral",
+  "HR Review",
+  "Joining Form",
+  "NDA",
+  "Non-Worker ID",
+  "Access Provisioning",
+  "Internship Active",
+  "Certificate",
+  "Completed"
 ];
-
-const fallbackSummary = {
-  total: 42,
-  pending: 12,
-  inProgress: 18,
-  completed: 12
-};
-
-const rolePanels = {
-  admin: {
-    label: "Program Admin",
-    focus: "End-to-end oversight"
-  },
-  hr: {
-    label: "HR",
-    focus: "Screening and onboarding"
-  },
-  it: {
-    label: "IT",
-    focus: "Access provisioning"
-  },
-  compliance: {
-    label: "Compliance",
-    focus: "NDA and audit trails"
-  }
-};
 
 const roleActions = {
   admin: [
-    "Review SLA escalations",
-    "Approve onboarding batches",
-    "Export audit trail"
+    "Review escalations",
+    "Approve lifecycle changes",
+    "Monitor audit integrity"
   ],
-  hr: ["Verify documents", "Schedule interview", "Issue onboarding email"],
-  it: ["Provision email", "Grant repo access", "Confirm tool licenses"],
-  compliance: ["Verify NDA status", "Check background docs", "Archive closure pack"]
+  hr: [
+    "Review referrals",
+    "Send NDA and offer letters",
+    "Manage onboarding requests"
+  ],
+  it: [
+    "Provision system access",
+    "Validate account readiness",
+    "Deactivate access on closure"
+  ],
+  compliance: [
+    "Review NDA logs",
+    "Audit lifecycle events",
+    "Verify closure artifacts"
+  ],
+  candidate: [
+    "Complete joining form",
+    "Sign NDA",
+    "Track internship milestones"
+  ]
 };
 
-const statusSteps = ["Referral", "NDA", "Active", "Completed"]; 
+const roleFocus = {
+  admin: "End-to-end oversight",
+  hr: "Screening and onboarding",
+  it: "Access provisioning",
+  compliance: "NDA and audit trails",
+  candidate: "Personal internship timeline"
+};
+
+const emptySummary = {
+  total: 0,
+  pending: 0,
+  inProgress: 0,
+  completed: 0,
+  slaAtRisk: 0,
+  slaBreaches: 0
+};
+
+const formatValue = (value) => value || "-";
+
+const getWorkflowIndex = (candidate) => {
+  if (!candidate) return 0;
+  if (candidate.status === "Completed" || candidate.lifecycle?.closureDate) return 8;
+  if (candidate.certificate?.issuedAt) return 7;
+  if (candidate.lifecycle?.startDate || candidate.status === "Active") return 6;
+  if (candidate.accessProvisioning?.status === "Provisioned") return 5;
+  if (candidate.joiningForm?.nonWorkerId) return 4;
+  if (candidate.nda?.signedAt || candidate.nda?.status === "Signed") return 3;
+  if (candidate.joiningForm?.status === "submitted") return 2;
+  if (candidate.status === "NDA") return 3;
+  return 0;
+};
 
 export default function Dashboard({ role = "admin", mode = "overview" }) {
-  const [summary, setSummary] = useState(fallbackSummary);
-  const [candidates, setCandidates] = useState(fallbackCandidates);
+  const { user } = useAuth();
+  const [summary, setSummary] = useState(emptySummary);
+  const [candidates, setCandidates] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
   const [aiInsight, setAiInsight] = useState(null);
   const [aiInsightStatus, setAiInsightStatus] = useState("idle");
   const [aiInsightError, setAiInsightError] = useState("");
@@ -75,23 +95,49 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [complianceMetrics, setComplianceMetrics] = useState(null);
-  const roleMeta = rolePanels[role] || rolePanels.admin;
-  const [selectedId, setSelectedId] = useState("");
+
+  const visibleCandidates = useMemo(() => {
+    if (role === "candidate" && user?.email) {
+      const ownCandidates = candidates.filter(
+        (candidate) => candidate.email?.toLowerCase() === user.email.toLowerCase()
+      );
+      return ownCandidates.length ? ownCandidates : candidates.slice(0, 1);
+    }
+    return candidates;
+  }, [candidates, role, user?.email]);
+
   const selectedCandidate = useMemo(
-    () => candidates.find((candidate) => candidate._id === selectedId) || candidates[0],
-    [candidates, selectedId]
+    () => visibleCandidates.find((candidate) => candidate._id === selectedId) || visibleCandidates[0] || null,
+    [selectedId, visibleCandidates]
   );
-  const [slaRisk, setSlaRisk] = useState({ riskLevel: "LOW", reason: "" });
-  const resolvedStatus =
-    selectedCandidate?.status && statusSteps.includes(selectedCandidate.status)
-      ? selectedCandidate.status
-      : statusSteps[0];
+
+  const currentStep = getWorkflowIndex(selectedCandidate);
+  const nextStatus = stageOrder[currentStep + 1];
+  const progressPercent = stageOrder.length > 1 ? (currentStep / (stageOrder.length - 1)) * 100 : 0;
+
+  const loadCandidates = async () => {
+    const [summaryResponse, candidateResponse] = await Promise.all([
+      fetchJson("/candidates/summary"),
+      fetchJson("/candidates")
+    ]);
+    setSummary(summaryResponse.summary || emptySummary);
+    setCandidates(candidateResponse.items || []);
+    const nextVisibleCandidates =
+      role === "candidate" && user?.email
+        ? (candidateResponse.items || []).filter(
+            (candidate) => candidate.email?.toLowerCase() === user.email.toLowerCase()
+          )
+        : candidateResponse.items || [];
+    if (!selectedId && nextVisibleCandidates.length) {
+      setSelectedId(nextVisibleCandidates[0]._id);
+    }
+  };
 
   const loadNotifications = async () => {
     try {
       const response = await fetchJson("/notifications");
       setNotifications(response.items || []);
-    } catch (error) {
+    } catch {
       setNotifications([]);
     }
   };
@@ -100,89 +146,43 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
     try {
       const response = await fetchJson("/reports/metrics");
       setComplianceMetrics(response.metrics || null);
-    } catch (error) {
+    } catch {
       setComplianceMetrics(null);
     }
   };
 
-  const refreshCandidates = async (nextSelectedId) => {
-    try {
-      const [summaryResponse, candidateResponse] = await Promise.all([
-        fetchJson("/candidates/summary"),
-        fetchJson("/candidates")
-      ]);
-      setSummary(summaryResponse.summary);
-      setCandidates(candidateResponse.items || []);
-      if (nextSelectedId) {
-        setSelectedId(nextSelectedId);
-      } else if (candidateResponse.items?.length) {
-        setSelectedId(candidateResponse.items[0]._id);
-      }
-    } catch (error) {
-      // Keep current data if refresh fails.
-    }
-  };
-
   useEffect(() => {
-    const loadData = async () => {
+    const run = async () => {
       try {
-        const summaryResponse = await fetchJson("/candidates/summary");
-        const candidateResponse = await fetchJson("/candidates");
-        setSummary(summaryResponse.summary);
-        setCandidates(candidateResponse.items || []);
-        if (!selectedId && candidateResponse.items?.length) {
-          setSelectedId(candidateResponse.items[0]._id);
-        }
+        await loadCandidates();
         await loadNotifications();
         await loadComplianceMetrics();
-      } catch (error) {
-        try {
-          const externalUsers = await fetchExternalCandidates();
-          const statuses = ["Referral", "NDA", "Active", "Completed"];
-          const mapped = externalUsers.map((user, index) => ({
-            _id: `external-${user.id}`,
-            name: user.name,
-            status: statuses[index % statuses.length],
-            score: 70 + (user.id % 25)
-          }));
-          setCandidates(mapped);
-          setSummary({
-            total: mapped.length,
-            pending: mapped.filter((item) => item.status !== "Active" && item.status !== "Completed").length,
-            inProgress: mapped.filter((item) => item.status === "Active").length,
-            completed: mapped.filter((item) => item.status === "Completed").length
-          });
-          if (mapped.length) {
-            setSelectedId(mapped[0]._id);
-          }
-          await loadComplianceMetrics();
-        } catch (fallbackError) {
-          // Keep hardcoded fallback data when external API is unavailable.
-        }
+      } catch {
+        setCandidates([]);
+        setSummary(emptySummary);
       }
     };
 
-    loadData();
-  }, []);
+    run();
+  }, [role, user?.email]);
 
   useEffect(() => {
-    const loadSlaRisk = async () => {
-      if (!selectedCandidate?._id) {
-        return;
-      }
+    if (!selectedCandidate?._id) {
+      return;
+    }
 
+    const loadSlaRisk = async () => {
       try {
-        const response = await fetchJson("/sla/risk", {
+        await fetchJson("/sla/risk", {
           method: "POST",
           body: JSON.stringify({
-            ndaSignedAt: selectedCandidate.ndaSignedAt,
+            ndaSignedAt: selectedCandidate.ndaSignedAt || selectedCandidate.nda?.signedAt,
             referralCreatedAt: selectedCandidate.createdAt,
             hrReviewed: Boolean(selectedCandidate.hrReviewedAt)
           })
         });
-        setSlaRisk(response);
-      } catch (error) {
-        setSlaRisk({ riskLevel: "MEDIUM", reason: "SLA risk monitor unavailable." });
+      } catch {
+        // best-effort only
       }
     };
 
@@ -190,53 +190,36 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
   }, [selectedCandidate]);
 
   const handleGenerateInsight = async () => {
+    if (!selectedCandidate) return;
     setIsGenerating(true);
     setAiInsightStatus("loading");
     setAiInsightError("");
-    setAiInsight(null);
     try {
-      const response = await fetchJson("/ai/evaluate", {
+      const response = await fetchJson("/ai/insight", {
         method: "POST",
-        body: JSON.stringify({
-          skills: selectedCandidate?.skills || [],
-          education: selectedCandidate?.education || [],
-          availability: selectedCandidate?.availability || "",
-          domain: selectedCandidate?.domain || "",
-          status: selectedCandidate?.status || "",
-          readinessExplanation: selectedCandidate?.readinessExplanation || ""
-        })
+        body: JSON.stringify({ candidateId: selectedCandidate._id })
       });
-      if (response.data && Object.keys(response.data).length) {
-        setAiInsight(response.data);
-        setAiInsightStatus("ready");
-      } else {
-        setAiInsight(null);
-        setAiInsightStatus("empty");
-      }
-    } catch (error) {
+      setAiInsight(response.data || null);
+      setAiInsightStatus(response.data ? "ready" : "empty");
+    } catch {
       setAiInsight(null);
-      setAiInsightError("AI insight generation is unavailable right now.");
       setAiInsightStatus("error");
+      setAiInsightError("AI insight generation is unavailable right now.");
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleDraftEmail = async (type) => {
-    if (!selectedCandidate) {
-      return;
-    }
+    if (!selectedCandidate) return;
     setIsDrafting(true);
     try {
       const response = await fetchJson("/ai/draft-email", {
         method: "POST",
-        body: JSON.stringify({
-          type,
-          candidate: selectedCandidate
-        })
+        body: JSON.stringify({ type, candidate: selectedCandidate })
       });
-      setDraftedEmail(response.data);
-    } catch (error) {
+      setDraftedEmail(response.data || null);
+    } catch {
       setDraftedEmail({
         subject: "Draft unavailable",
         body: "AI drafting is offline. Please use the standard templates."
@@ -246,59 +229,36 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
     }
   };
 
-  const handleCandidateUpdated = async (updatedCandidate) => {
-    if (!updatedCandidate) {
-      return;
-    }
-    setCandidates((previous) =>
-      previous.map((candidate) =>
-        candidate._id === updatedCandidate._id ? updatedCandidate : candidate
-      )
-    );
-    setSelectedId(updatedCandidate._id);
-    try {
-      const summaryResponse = await fetchJson("/candidates/summary");
-      setSummary(summaryResponse.summary);
-    } catch (error) {
-      // Summary refresh is best-effort.
-    }
-  };
-
   const handleSeedDemo = async () => {
     setIsSeeding(true);
     try {
       await fetchJson("/candidates/demo-seed", { method: "POST" });
-      await refreshCandidates();
+      await loadCandidates();
       await loadNotifications();
-    } catch (error) {
-      // Demo seed is optional; keep UI responsive.
+      await loadComplianceMetrics();
+    } catch {
+      // optional action
     } finally {
       setIsSeeding(false);
     }
   };
 
   const handleAdvanceStatus = async () => {
-    if (!selectedCandidate?._id) {
-      return;
-    }
-    const currentIndex = statusSteps.indexOf(resolvedStatus);
-    const nextStatus = statusSteps[currentIndex + 1];
-    if (!nextStatus) {
-      return;
-    }
+    if (!selectedCandidate || !nextStatus) return;
     setIsUpdatingStatus(true);
     try {
       const response = await fetchJson(`/candidates/${selectedCandidate._id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({
-          status: nextStatus,
-          note: `Advanced to ${nextStatus}.`
-        })
+        body: JSON.stringify({ status: nextStatus, note: `Advanced to ${nextStatus}.` })
       });
-      await handleCandidateUpdated(response.item);
+      const updated = response.item;
+      setCandidates((previous) =>
+        previous.map((candidate) => (candidate._id === updated._id ? updated : candidate))
+      );
+      setSelectedId(updated._id);
       await loadNotifications();
-    } catch (error) {
-      // Ignore status update errors for demo resilience.
+    } catch {
+      // keep the dashboard responsive
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -306,33 +266,28 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
 
   const handleAcknowledge = async (id) => {
     try {
-      const response = await fetchJson(`/notifications/${id}/ack`, {
-        method: "PATCH"
-      });
-      setNotifications((previous) =>
-        previous.map((item) => (item._id === id ? response.item : item))
-      );
-    } catch (error) {
-      // Keep notification list as-is on failure.
+      const response = await fetchJson(`/notifications/${id}/ack`, { method: "PATCH" });
+      setNotifications((previous) => previous.map((item) => (item._id === id ? response.item : item)));
+    } catch {
+      // no-op
     }
   };
 
-  const currentStep = Math.max(
-    0,
-    statusSteps.indexOf(resolvedStatus)
-  );
-  const nextStatus = statusSteps[currentStep + 1];
+  const showOverview = mode === "overview";
+  const showWorkflow = mode === "workflow" || mode === "candidate";
+  const showOperations = mode === "operations" || mode === "candidate";
+  const showCompliance = mode === "compliance" || role === "compliance";
+  const showAccessSection = role === "admin" || role === "it";
+  const showHrCommunications = role === "admin" || role === "hr";
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-lg">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Operational Dashboard</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Pipeline analytics, SLA signals, and AI-assisted readiness.
-          </p>
+          <p className="mt-1 text-sm text-slate-400">Pipeline analytics, workflow control, and AI-assisted readiness.</p>
           <p className="mt-2 text-xs uppercase tracking-[0.24em] text-emerald-300/70">
-            {roleMeta.label} • {roleMeta.focus}
+            {role} • {roleFocus[role] || roleFocus.admin}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -340,11 +295,11 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
             className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
             onClick={handleGenerateInsight}
             type="button"
-            disabled={isGenerating}
+            disabled={isGenerating || !selectedCandidate}
           >
             {isGenerating ? "Generating insight..." : "Generate AI insight"}
           </button>
-          {mode === "overview" ? (
+          {role === "admin" ? (
             <button
               className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:border-slate-600"
               onClick={handleSeedDemo}
@@ -357,312 +312,213 @@ export default function Dashboard({ role = "admin", mode = "overview" }) {
         </div>
       </div>
 
-        {mode === "overview" ? (
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: "Total candidates", value: summary.total },
-              { label: "Pending", value: summary.pending },
-              { label: "In progress", value: summary.inProgress },
-              { label: "Completed", value: summary.completed },
-              { label: "SLA at risk", value: summary.slaAtRisk ?? "-" },
-              { label: "SLA breaches", value: summary.slaBreaches ?? "-" }
-            ].map((card) => (
-              <div
-                key={card.label}
-              className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-4"
-            >
-              <p className="text-xs uppercase tracking-wide text-slate-500">
-                {card.label}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-100">
-                {card.value}
-              </p>
+      {showOverview ? (
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Total candidates", value: summary.total },
+            { label: "Pending", value: summary.pending },
+            { label: "In progress", value: summary.inProgress },
+            { label: "Completed", value: summary.completed }
+          ].map((card) => (
+            <div key={card.label} className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">{card.label}</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-100">{card.value}</p>
             </div>
           ))}
         </div>
       ) : null}
 
-      {mode === "overview" ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="overflow-hidden rounded-xl border border-slate-800">
-          <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Candidates</p>
-            <select
-              className="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-slate-300"
-              value={selectedId}
-              onChange={(event) => setSelectedId(event.target.value)}
-            >
-              {candidates.map((candidate) => (
-                <option key={candidate._id || candidate.name} value={candidate._id || ""}>
-                  {candidate.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <table className="min-w-full divide-y divide-slate-800">
-            <thead className="bg-slate-950">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Score
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-              {candidates.map((candidate) => (
-                <tr key={candidate._id || candidate.name}>
-                  <td className="px-4 py-3 text-sm text-slate-100">
-                    {candidate.name}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        statusStyles[candidate.status] ||
-                        "bg-slate-800 text-slate-300"
-                      }`}
-                    >
-                      {candidate.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-200">
-                    {candidate.score ?? "-"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-          <p className="text-xs uppercase tracking-wide text-slate-500">AI Summary</p>
-          <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            {aiInsightStatus === "loading" ? (
-              <p className="text-sm text-slate-200">Generating insight...</p>
-            ) : aiInsightStatus === "error" ? (
-              <p className="text-sm text-rose-300">{aiInsightError}</p>
-            ) : aiInsightStatus === "empty" ? (
-              <p className="text-sm text-slate-200">No insight returned. Try again in a moment.</p>
-            ) : aiInsight ? (
-              <div className="space-y-3 text-sm text-slate-200">
-                <p>
-                  Score {aiInsight.score}: {aiInsight.explanation}
-                </p>
-                <p className="text-xs uppercase tracking-wide text-emerald-300/70">
-                  Candidate readiness
-                </p>
-                <p className="text-xs text-slate-400">
-                  {aiInsight.candidateReadiness || selectedCandidate?.readinessExplanation || "Ready for review."}
-                </p>
-                {aiInsight.riskInsights?.length ? (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-amber-300/70">Risk insights</p>
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
-                      {aiInsight.riskInsights.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {aiInsight.nextSteps?.length ? (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-sky-300/70">Next steps</p>
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
-                      {aiInsight.nextSteps.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-200">
-                Generate an insight to surface readiness risks and next steps.
-              </p>
-            )}
-          </div>
-          <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wide text-slate-500">AI Drafted Email</p>
-              <button
-                type="button"
-                className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-300"
-                onClick={() => handleDraftEmail("intro")}
-                disabled={isDrafting}
-              >
-                {isDrafting ? "Drafting..." : "Draft communication"}
-              </button>
-            </div>
-            <div className="mt-3 text-xs text-slate-300">
-              {draftedEmail ? (
-                <>
-                  <p className="text-slate-200">{draftedEmail.subject}</p>
-                  <p className="mt-2 whitespace-pre-line text-slate-400">{draftedEmail.body}</p>
-                </>
-              ) : (
-                <p className="text-slate-400">Generate a draft to share.</p>
-              )}
-            </div>
-          </div>
-          <div className="mt-4 space-y-3 text-xs text-slate-400">
-            <div className="flex items-center justify-between">
-              <span>Automation: NDA reminders</span>
-              <span className="text-emerald-300">Active</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Compliance checks</span>
-              <span className="text-emerald-300">Synced</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>SLA risk monitor</span>
-              <span className="text-amber-300">Medium</span>
-            </div>
-          </div>
-          <div className="mt-6 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Role Actions</p>
-            <ul className="mt-3 space-y-2 text-xs text-slate-300">
-              {(roleActions[role] || roleActions.admin).map((action) => (
-                <li key={action} className="flex items-center justify-between">
-                  <span>{action}</span>
-                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] text-slate-400">
-                    Pending
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-      ) : null}
-
-      {mode === "operations" ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <OnboardingPanel candidate={selectedCandidate} onUpdated={handleCandidateUpdated} />
-          <div className="grid gap-4">
-            <NdaPanel candidate={selectedCandidate} onUpdated={handleCandidateUpdated} />
-            <AccessPanel candidate={selectedCandidate} onUpdated={handleCandidateUpdated} />
-            <CertificatePanel candidate={selectedCandidate} onUpdated={handleCandidateUpdated} />
-            <DocumentsPanel candidate={selectedCandidate} onUpdated={handleCandidateUpdated} />
-          </div>
-        </div>
-      ) : null}
-
-      {mode === "workflow" ? (
-        (role === "admin" || role === "hr") ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="grid gap-4">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-6">
+          {selectedCandidate ? (
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Selected Candidate</p>
-              <div className="mt-3 flex items-center justify-between">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-200">
-                    {selectedCandidate?.name || "Choose a candidate"}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    Status: {selectedCandidate?.status || "Referral"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Selected Candidate</p>
+                  <h3 className="mt-2 text-xl font-semibold text-slate-100">{selectedCandidate.name}</h3>
+                  <p className="mt-1 text-sm text-slate-400">Stage: {selectedCandidate.status || "Referral"}</p>
                 </div>
-                <select
-                  className="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-slate-300"
-                  value={selectedId}
-                  onChange={(event) => setSelectedId(event.target.value)}
-                >
-                  {candidates.map((candidate) => (
-                    <option key={candidate._id || candidate.name} value={candidate._id || ""}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </select>
+                {role !== "candidate" ? (
+                  <select
+                    className="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-xs text-slate-300"
+                    value={selectedId}
+                    onChange={(event) => setSelectedId(event.target.value)}
+                  >
+                    {visibleCandidates.map((candidate) => (
+                      <option key={candidate._id} value={candidate._id}>
+                        {candidate.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
               </div>
-              <button
-                type="button"
-                className="mt-4 rounded-full border border-emerald-500/70 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200"
-                onClick={handleAdvanceStatus}
-                disabled={!nextStatus || isUpdatingStatus}
-              >
-                {isUpdatingStatus
-                  ? "Updating status..."
-                  : nextStatus
-                  ? `Advance to ${nextStatus}`
-                  : "Workflow complete"}
-              </button>
-            </div>
-            <AuditTrail candidate={selectedCandidate} />
-          </div>
-          <WorkflowStepper status={selectedCandidate?.status} currentStep={currentStep} />
-        </div>
-        ) : (
-          <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950 p-5">
-            <p className="text-sm text-slate-300">Workflow & SLA views are visible to HR and Admin only.</p>
-          </div>
-        )
-      ) : null} 
 
-      {mode === "compliance" ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr]">
-          <div className="grid gap-4">
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Compliance Metrics</p>
-              <div className="mt-4 grid gap-3 text-xs text-slate-300">
-                <div className="flex items-center justify-between">
-                  <span>Average cycle time</span>
-                  <span className="text-slate-200">
-                    {complianceMetrics?.averageCycleDays ?? "-"} days
-                  </span>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-sm">
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Phone</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.phone || selectedCandidate.joiningForm?.phone)}</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>NDA breaches</span>
-                  <span className="text-amber-300">
-                    {complianceMetrics?.ndaBreaches ?? "-"}
-                  </span>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Address</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.joiningForm?.address)}</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Completion ratio</span>
-                  <span className="text-emerald-300">
-                    {complianceMetrics?.completionRatio ?? "-"}%
-                  </span>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Emergency Contact</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.joiningForm?.emergencyContact)}</p>
                 </div>
-                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-[11px] text-slate-400">
-                  SLA breaches: Non-Worker ID {" "}
-                  {complianceMetrics?.slaBreaches?.nonWorkerId ?? "-"}, NDA {" "}
-                  {complianceMetrics?.slaBreaches?.nda ?? "-"}, Deactivation {" "}
-                  {complianceMetrics?.slaBreaches?.accessDeactivation ?? "-"}
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Aadhaar</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.joiningForm?.aadhaarNumber)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">PAN</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.joiningForm?.panCardNumber)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Government ID</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.joiningForm?.governmentId)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">NDA Status</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.nda?.status || "Not Issued")}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Non-Worker ID</p>
+                  <p className="mt-1 text-slate-100">{formatValue(selectedCandidate.joiningForm?.nonWorkerId)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Workflow Stage</p>
+                  <p className="mt-1 text-slate-100">{stageOrder[currentStep]}</p>
                 </div>
               </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <div className="h-2 flex-1 rounded-full bg-slate-800">
+                  <div className="h-2 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 transition-all" style={{ width: `${progressPercent}%` }} />
+                </div>
+                <span className="text-xs text-slate-400">{Math.round(progressPercent)}%</span>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="rounded-full border border-emerald-500/70 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200"
+                  onClick={handleAdvanceStatus}
+                  disabled={!nextStatus || isUpdatingStatus || role === "candidate"}
+                >
+                  {isUpdatingStatus ? "Updating status..." : nextStatus ? `Advance to ${nextStatus}` : "Workflow complete"}
+                </button>
+                {showHrCommunications ? (
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300"
+                    onClick={() => handleDraftEmail("mentor-intro")}
+                    disabled={isDrafting}
+                  >
+                    {isDrafting ? "Drafting..." : "Draft mail template"}
+                  </button>
+                ) : null}
+              </div>
             </div>
-            <AuditTrail candidate={selectedCandidate} />
+          ) : null}
+
+          {showWorkflow ? <WorkflowStepper status={stageOrder[currentStep]} currentStep={currentStep} /> : null}
+          {selectedCandidate ? <AuditTrail candidate={selectedCandidate} /> : null}
+        </div>
+
+        <div className="space-y-6">
+          {showOperations && role !== "candidate" ? (
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Notifications</p>
-              <div className="mt-4 space-y-3 text-xs text-slate-300">
-                {notifications.length ? (
-                  notifications.slice(0, 5).map((item) => (
-                    <div key={item._id} className="flex items-start justify-between gap-3">
+              <p className="text-xs uppercase tracking-wide text-slate-500">AI Insight</p>
+              <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">
+                {aiInsightStatus === "loading" ? (
+                  <p>Generating insight...</p>
+                ) : aiInsightStatus === "error" ? (
+                  <p className="text-rose-300">{aiInsightError}</p>
+                ) : aiInsight ? (
+                  <div className="space-y-3">
+                    <p>Score {aiInsight.score}: {aiInsight.explanation}</p>
+                    {aiInsight.nextSteps?.length ? (
                       <div>
-                        <p className="text-sm text-slate-200">{item.subject || "Notification"}</p>
-                        <p className="text-xs text-slate-500">{item.body || ""}</p>
+                        <p className="text-xs uppercase tracking-wide text-sky-300/70">Next steps</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
+                          {aiInsight.nextSteps.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
                       </div>
-                      <button
-                        type="button"
-                        className="rounded-full border border-slate-700 px-3 py-1 text-[10px] text-slate-300"
-                        onClick={() => handleAcknowledge(item._id)}
-                        disabled={item.status === "sent"}
-                      >
-                        {item.status === "sent" ? "Sent" : "Acknowledge"}
-                      </button>
-                    </div>
-                  ))
+                    ) : null}
+                    {aiInsight.risks?.length ? (
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-amber-300/70">Risks</p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
+                          {aiInsight.risks.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
-                  <p className="text-xs text-slate-500">No notifications yet.</p>
+                  <p>Generate an insight to surface readiness risks and next steps.</p>
                 )}
               </div>
             </div>
+          ) : null}
+
+              {showAccessSection ? <AccessPanel candidate={selectedCandidate} onUpdated={() => loadCandidates()} /> : null}
+          {showHrCommunications ? (
+            <>
+              <DocumentsPanel candidate={selectedCandidate} onUpdated={() => loadCandidates()} />
+              <CertificatePanel candidate={selectedCandidate} onUpdated={() => loadCandidates()} />
+            </>
+          ) : null}
+          {role === "candidate" ? <OnboardingPanel candidate={selectedCandidate} onUpdated={() => loadCandidates()} /> : null}
+          {showOperations && role !== "candidate" ? (
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
+              <p className="text-xs uppercase tracking-wide text-slate-500">AI Drafted Email</p>
+              <div className="mt-3 text-xs text-slate-300">
+                {draftedEmail ? (
+                  <>
+                    <p className="text-slate-200">{draftedEmail.subject}</p>
+                    <p className="mt-2 whitespace-pre-line text-slate-400">{draftedEmail.body}</p>
+                  </>
+                ) : (
+                  <p className="text-slate-400">Generate a draft to share.</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {showCompliance ? (
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Compliance Metrics</p>
+              <div className="mt-4 grid gap-3 text-xs text-slate-300">
+                <div className="flex items-center justify-between"><span>Average cycle time</span><span className="text-slate-200">{complianceMetrics?.averageCycleDays ?? "-"} days</span></div>
+                <div className="flex items-center justify-between"><span>NDA breaches</span><span className="text-amber-300">{complianceMetrics?.ndaBreaches ?? "-"}</span></div>
+                <div className="flex items-center justify-between"><span>Completion ratio</span><span className="text-emerald-300">{complianceMetrics?.completionRatio ?? "-"}%</span></div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Notifications</p>
+            <div className="mt-4 space-y-3 text-xs text-slate-300">
+              {notifications.length ? notifications.slice(0, 5).map((item) => (
+                <div key={item._id} className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-slate-200">{item.subject || "Notification"}</p>
+                    <p className="text-xs text-slate-500">{item.body || ""}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-700 px-3 py-1 text-[10px] text-slate-300"
+                    onClick={() => handleAcknowledge(item._id)}
+                  >
+                    Acknowledge
+                  </button>
+                </div>
+              )) : <p className="text-xs text-slate-500">No notifications yet.</p>}
+            </div>
           </div>
         </div>
-      ) : null} 
+      </div>
     </section>
   );
 }

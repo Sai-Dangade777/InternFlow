@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { authenticate, requireRole } from "../middlewares/auth.js";
 import {
   acknowledgeNotification,
   createNotification,
@@ -7,8 +8,10 @@ import {
 
 const router = Router();
 
-router.get("/", listNotifications);
-router.post("/", createNotification);
-router.patch("/:id/ack", acknowledgeNotification);
+router.use(authenticate);
+
+router.get("/", requireRole(["admin", "hr", "it", "compliance", "candidate"]), listNotifications);
+router.post("/", requireRole(["admin", "hr", "it", "compliance"]), createNotification);
+router.patch("/:id/ack", requireRole(["admin", "hr", "it", "compliance", "candidate"]), acknowledgeNotification);
 
 export default router;

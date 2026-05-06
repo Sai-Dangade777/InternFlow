@@ -1,34 +1,57 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import RoleSwitcher from "../components/RoleSwitcher.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
 
-const links = [
-  { to: "/", label: "Overview" },
-  { to: "/referrals", label: "Referral Intake" },
-  { to: "/workflow", label: "Workflow & SLA" },
-  { to: "/onboarding", label: "Onboarding" },
-  { to: "/compliance", label: "Compliance & Audit" }
-];
+const navigationByRole = {
+  admin: [
+    { to: "/admin/dashboard", label: "Overview" },
+    { to: "/referrals", label: "Referral Intake" },
+    { to: "/workflow", label: "Workflow & SLA" },
+    { to: "/onboarding", label: "Onboarding" },
+    { to: "/compliance", label: "Compliance & Audit" }
+  ],
+  hr: [
+    { to: "/hr/dashboard", label: "HR Dashboard" },
+    { to: "/referrals", label: "Referral Intake" },
+    { to: "/workflow", label: "Workflow & SLA" },
+    { to: "/onboarding", label: "Joining & Docs" },
+    { to: "/compliance", label: "Compliance & Audit" }
+  ],
+  it: [
+    { to: "/it/dashboard", label: "IT Dashboard" },
+    { to: "/onboarding", label: "Provisioning" }
+  ],
+  compliance: [
+    { to: "/compliance/dashboard", label: "Compliance Dashboard" },
+    { to: "/compliance", label: "Audit Trail" }
+  ],
+  candidate: [
+    { to: "/candidate/dashboard", label: "My Dashboard" },
+    { to: "/onboarding", label: "Joining Form" }
+  ]
+};
+
+const pageTitles = {
+  admin: "Program Admin Console",
+  hr: "HR Operations Console",
+  it: "IT Provisioning Console",
+  compliance: "Compliance Console",
+  candidate: "Candidate Portal"
+};
 
 export default function Layout() {
   const location = useLocation();
-  const currentRole =
-    location.pathname.startsWith("/hr")
-      ? "hr"
-      : location.pathname.startsWith("/it")
-      ? "it"
-      : location.pathname.startsWith("/compliance")
-      ? "compliance"
-      : "admin";
+  const { user } = useAuth();
+  const currentRole = user?.role || (location.pathname.startsWith("/hr")
+    ? "hr"
+    : location.pathname.startsWith("/it")
+    ? "it"
+    : location.pathname.startsWith("/compliance")
+    ? "compliance"
+    : location.pathname.startsWith("/candidate")
+    ? "candidate"
+    : "admin");
 
-  const visibleLinks = links.filter((link) => {
-    if (link.to === "/workflow") {
-      return currentRole === "admin" || currentRole === "hr";
-    }
-    if (link.to === "/compliance") {
-      return currentRole === "admin" || currentRole === "hr" || currentRole === "compliance";
-    }
-    return true;
-  });
+  const links = navigationByRole[currentRole] || navigationByRole.admin;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
@@ -38,39 +61,31 @@ export default function Layout() {
       </div>
 
       <header className="relative border-b border-slate-800/80">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.32em] text-emerald-300/80">
-              Intern Flow
-            </p>
+            <p className="text-xs uppercase tracking-[0.32em] text-emerald-300/80">Intern Flow</p>
             <h1 className="mt-2 text-3xl font-semibold text-white md:text-4xl">
-              Internship Command Center
+              {pageTitles[currentRole] || pageTitles.admin}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-400">
-              Centralize referrals, automate compliance, and keep every stakeholder aligned with
-              AI-assisted workflow intelligence.
+              Role-specific workflow controls, candidate lifecycle tracking, and audit-safe automation.
             </p>
           </div>
-          <div className="flex flex-col gap-3">
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
-              Live build: Hackathon MVP
-              <div className="mt-1 text-[11px] text-emerald-300/80">API + GenAI ready</div>
-            </div>
-            <RoleSwitcher activeRole={currentRole} />
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
+            Signed in as <span className="text-emerald-300">{currentRole}</span>
+            <div className="mt-1 text-[11px] text-slate-500">{user?.email || "guest"}</div>
           </div>
         </div>
       </header>
 
-      <main className="relative mx-auto grid max-w-6xl gap-8 px-6 py-10 lg:grid-cols-[0.28fr_1fr]">
+      <main className="relative mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[0.28fr_1fr]">
         <aside className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4">
-          <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Sections</p>
+          <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Navigation</p>
           <div className="mt-3 grid gap-2">
-            {visibleLinks.map((link) => {
-              const target = link.to === "/" ? `/${currentRole}/dashboard` : link.to;
-              return (
+            {links.map((link) => (
               <NavLink
                 key={link.to}
-                to={target}
+                to={link.to}
                 className={({ isActive }) =>
                   `rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                     isActive
@@ -78,12 +93,10 @@ export default function Layout() {
                       : "border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700"
                   }`
                 }
-                end
               >
                 {link.label}
               </NavLink>
-              );
-            })}
+            ))}
           </div>
         </aside>
         <section className="min-h-[70vh]">

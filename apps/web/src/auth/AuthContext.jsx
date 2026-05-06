@@ -2,43 +2,54 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const AuthContext = createContext(null);
 
-const storageKey = "internFlowUser";
-const tokenKey = "internFlowToken";
+const storageKey = "internflow_auth";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const raw = localStorage.getItem(storageKey);
     if (raw) {
       try {
-        setUser(JSON.parse(raw));
+        const parsed = JSON.parse(raw);
+        setUser(parsed?.user || parsed);
       } catch {
         localStorage.removeItem(storageKey);
       }
     }
+    setLoading(false);
   }, []);
 
   const signIn = (payload) => {
     const nextUser = {
-      name: payload.name || "",
-      email: payload.email,
-      role: payload.role || "hr"
+      id: payload.id || payload.user?.id || "",
+      name: payload.name || payload.user?.name || "",
+      email: payload.email || payload.user?.email || "",
+      role: payload.role || payload.user?.role || "candidate",
+      token: payload.token || payload.user?.token || ""
     };
-    localStorage.setItem(storageKey, JSON.stringify(nextUser));
-    if (payload.token) {
-      localStorage.setItem(tokenKey, payload.token);
-    }
+
+    localStorage.setItem(storageKey, JSON.stringify({ user: nextUser }));
     setUser(nextUser);
   };
 
   const signOut = () => {
     localStorage.removeItem(storageKey);
-    localStorage.removeItem(tokenKey);
     setUser(null);
   };
 
-  const value = useMemo(() => ({ user, signIn, signOut }), [user]);
+  const switchRole = (role) => {
+    if (!user) {
+      return;
+    }
+
+    const nextUser = { ...user, role };
+    localStorage.setItem(storageKey, JSON.stringify({ user: nextUser }));
+    setUser(nextUser);
+  };
+
+  const value = useMemo(() => ({ user, loading, signIn, signOut, switchRole }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

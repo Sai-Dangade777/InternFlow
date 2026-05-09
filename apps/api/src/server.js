@@ -12,15 +12,24 @@ const __dirname = path.dirname(__filename);
 const uploadsPath = path.resolve(__dirname, "../uploads");
 
 const startServer = async () => {
-  await fs.mkdir(uploadsPath, { recursive: true });
-  await connectToDatabase(process.env.MONGODB_URI);
+  try {
+    console.log("[SERVER] Creating uploads directory...");
+    await fs.mkdir(uploadsPath, { recursive: true });
+    console.log("[SERVER] Uploads directory ready");
+
+    console.log("[SERVER] Connecting to MongoDB...");
+    await connectToDatabase(process.env.MONGODB_URI);
+    console.log("[SERVER] MongoDB connected");
+  } catch (error) {
+    console.warn("[SERVER] MongoDB connection warning (continuing with degraded functionality):", error.message);
+  }
 
   app.listen(port, () => {
-    console.log(`API listening on port ${port}`);
+    console.log(`[SERVER] API listening on port ${port}`);
   });
 };
 
 startServer().catch((error) => {
-  console.error("Failed to start API", error);
+  console.error("[SERVER] Failed to start API", error);
   process.exit(1);
 });

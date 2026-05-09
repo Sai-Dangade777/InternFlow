@@ -15,7 +15,9 @@ export const connectToDatabase = async (connectionString) => {
 
   try {
     await mongoose.connect(connectionString, {
-      serverSelectionTimeoutMS: 8000
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 3000,
+      socketTimeoutMS: 3000
     });
   } catch (error) {
     const message = error?.message || "Failed to connect to MongoDB";

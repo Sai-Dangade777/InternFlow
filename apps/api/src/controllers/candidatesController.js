@@ -269,7 +269,6 @@ export const updateCandidateStatus = async (req, res, next) => {
       });
       await notification.save();
     }
-    }
 
     candidate.status = status;
     candidate.timeline.push({ stage: status, note });
@@ -331,7 +330,7 @@ export const updateJoiningForm = async (req, res, next) => {
       emergencyContact: emergencyContact ?? candidate.joiningForm.emergencyContact,
       nonWorkerId: nonWorkerId ?? candidate.joiningForm.nonWorkerId,
       governmentId: governmentId ?? candidate.joiningForm.governmentId,
-      declarationAccepted: declarationAccepted ?? candidate.joiningForm.declarationAccepted
+      declarationAccepted: declarationAccepted ?? candidate.joiningForm.declarationAccepted,
       aadhaarNumber: req.body.aadhaarNumber ?? candidate.joiningForm.aadhaarNumber,
       panCardNumber: req.body.panCardNumber ?? candidate.joiningForm.panCardNumber
     };
@@ -646,12 +645,6 @@ export const generateCandidateLetter = async (req, res, next) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
     res.send(pdfBuffer);
-  } catch (error) {
-    next(error);
-  }
-};
-
-    return res.json({ item: candidate, letter: candidate.letters[letterKey] });
   } catch (error) {
     next(error);
   }

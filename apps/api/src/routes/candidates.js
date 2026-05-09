@@ -1,7 +1,7 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import { authenticate, requireRole } from "../middlewares/auth.js";
 import {
-  import { authenticate, requireRole } from "../middlewares/auth.js";
   listCandidates,
   getCandidateSummary,
   updateCandidateStatus,

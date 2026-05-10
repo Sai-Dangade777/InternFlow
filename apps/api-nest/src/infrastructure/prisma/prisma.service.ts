@@ -7,7 +7,10 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   async onModuleInit(): Promise<void> {
-    await this.$connect();
+    // Only attempt to connect when a DATABASE_URL is provided (local scaffold without DB allowed)
+    if (process.env.DATABASE_URL) {
+      await this.$connect();
+    }
   }
 
   async onModuleDestroy(): Promise<void> {

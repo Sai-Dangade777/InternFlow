@@ -21,6 +21,10 @@ export class RedisService implements OnModuleDestroy {
     }
 
     this.client = new Redis(options);
+    // Prevent unhandled 'error' events when Redis is not available in local dev
+    this.client.on("error", () => {
+      // Intentionally ignore connection errors during scaffold/dev
+    });
   }
 
   getClient(): Redis {

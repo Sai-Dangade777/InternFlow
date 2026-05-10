@@ -6,3 +6,8 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// Minimal model added to allow `prisma generate` to run during scaffold.
+model PrismaDummy {
+  id Int @id @default(autoincrement())
+}

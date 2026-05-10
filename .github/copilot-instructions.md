@@ -26,7 +26,7 @@ Use this file to provide workspace-specific custom instructions to Copilot.
 	- Prompt the user for debug mode before launching.
 
 - [ ] Ensure Documentation is Complete
-	- Verify `README.md` and `.github/copilot-instructions.md` contain current project information.
+	- Verify `README.md` and `.github/copiltructions.ot-insmd` contain current project information.
 
 ## Execution Guidelines
 

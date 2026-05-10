@@ -7,9 +7,12 @@
   "scripts": {
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run dev -w apps/api",
+    "dev:api-nest": "npm run start:dev -w apps/api-nest",
     "dev": "npm run dev -w apps/web",
     "build": "npm run build -w apps/web",
-    "start": "npm run start -w apps/api"
+    "start": "npm run start -w apps/api",
+    "build:api-nest": "npm run build -w apps/api-nest",
+    "start:api-nest": "npm run start -w apps/api-nest"
   },
   "dependencies": {
     "mongodb": "^7.2.0",

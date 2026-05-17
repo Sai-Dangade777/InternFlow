@@ -18,5 +18,10 @@ export const validationSchema = Joi.object({
   REDIS_PORT: Joi.number().port().default(6379),
   REDIS_PASSWORD: Joi.string().allow("").optional(),
   REDIS_TLS: Joi.boolean().truthy("true").falsy("false").default(false),
-  BULLMQ_PREFIX: Joi.string().default("internflow")
+  BULLMQ_PREFIX: Joi.string().default("internflow"),
+  JWT_SECRET: Joi.string().min(16).required(),
+  JWT_EXPIRES_IN: Joi.string().default("15m"),
+  JWT_REFRESH_SECRET: Joi.string().allow("").optional(),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default("7d"),
+  BCRYPT_SALT_ROUNDS: Joi.number().integer().min(8).max(15).default(12)
 }).unknown(true);

@@ -7,7 +7,901 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Minimal model added to allow `prisma generate` to run during scaffold.
-model PrismaDummy {
-  id Int @id @default(autoincrement())
+enum RoleType {
+  SUPER_ADMIN
+  ADMIN
+  PROGRAM_ADMIN
+  HR
+  RECRUITER
+  INTERVIEWER
+  IT
+  COMPLIANCE
+  MENTOR
+  CANDIDATE
+  EMPLOYEE_REFERRER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum CandidateStatus {
+  NEW
+  ELIGIBILITY_PENDING
+  ELIGIBLE
+  INELIGIBLE
+  HR_REVIEW
+  ONBOARDING
+  NDA_PENDING
+  PROVISIONING
+  ACTIVE
+  COMPLETED
+  CLOSED
+}
+
+enum CandidateSource {
+  REFERRAL
+  DIRECT
+  IMPORT
+  API
+}
+
+enum ReferralStatus {
+  SUBMITTED
+  VALIDATING
+  ACCEPTED
+  REJECTED
+  DUPLICATE
+  WITHDRAWN
+}
+
+enum WorkflowEntityType {
+  REFERRAL
+  CANDIDATE
+  INTERNSHIP
+  NDA
+  PROVISIONING
+  CERTIFICATE
+  DOCUMENT
+  NOTIFICATION
+}
+
+enum WorkflowEventType {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  SUBMITTED
+  APPROVED
+  REJECTED
+  COMPLETED
+  FAILED
+  COMMENTED
+}
+
+enum NdaStatus {
+  DRAFT
+  SENT
+  SIGNED
+  DECLINED
+  EXPIRED
+  VOIDED
+}
+
+enum NonWorkerIdStatus {
+  REQUESTED
+  ISSUED
+  REVOKED
+}
+
+enum AccessSystem {
+  EMAIL
+  GSUITE
+  OKTA
+  GITHUB
+  SLACK
+  VPN
+  LMS
+  OTHER
+}
+
+enum ProvisioningStatus {
+  REQUESTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum InternshipStatus {
+  PLANNED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  TERMINATED
+}
+
+enum MentorAssignmentStatus {
+  ACTIVE
+  ENDED
+}
+
+enum ProgressUpdateType {
+  WEEKLY
+  MILESTONE
+  ISSUE
+  NOTE
+}
+
+enum CertificateStatus {
+  REQUESTED
+  APPROVED
+  GENERATED
+  ISSUED
+  REJECTED
+  REVOKED
+}
+
+enum DocumentType {
+  RESUME
+  NDA
+  OFFER_LETTER
+  ID_DOC
+  CERTIFICATE
+  OTHER
+}
+
+enum StorageProvider {
+  SUPABASE
+  OTHER
+}
+
+enum DocumentOwnerType {
+  USER
+  CANDIDATE
+  INTERNSHIP
+  REFERRAL
+  CERTIFICATE
+  NDA
+  PROVISIONING
+  OTHER
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+  WEBHOOK
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum NotificationType {
+  GENERAL
+  WORKFLOW
+  REMINDER
+  SECURITY
+  SLA_RISK
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  SOFT_DELETE
+  RESTORE
+  LOGIN
+  LOGOUT
+  ACCESS
+  EXPORT
+}
+
+enum AuditEntityType {
+  USER
+  ROLE
+  CANDIDATE
+  CANDIDATE_PROFILE
+  REFERRAL
+  WORKFLOW_EVENT
+  NDA_RECORD
+  NON_WORKER_ID
+  ACCESS_PROVISIONING
+  INTERNSHIP
+  MENTOR_ASSIGNMENT
+  PROGRESS_UPDATE
+  CERTIFICATE
+  DOCUMENT
+  NOTIFICATION
+  AI_RESUME_PARSING_RESULT
+  AI_INSIGHT
+}
+
+enum AiJobStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum AiProvider {
+  OPENAI
+  AZURE_OPENAI
+  ANTHROPIC
+  OTHER
+}
+
+enum AiInsightType {
+  ELIGIBILITY
+  RISK
+  SUMMARY
+  RECOMMENDATION
+  SKILLS_MATCH
+  PROGRESS
+}
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at")
+  deletedById String? @db.Uuid @map("deleted_by_id")
+  deletedBy User? @relation("OrganizationDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  users               User[] @relation("OrganizationUsers")
+  userRoles           UserRole[]
+  candidates          Candidate[]
+  referrals           Referral[]
+  workflowEvents      WorkflowEvent[]
+  ndaRecords          NdaRecord[]
+  nonWorkerIds        NonWorkerId[]
+  accessProvisionings AccessProvisioning[]
+  internships         Internship[]
+  mentorAssignments   MentorAssignment[]
+  progressUpdates     ProgressUpdate[]
+  certificates        Certificate[]
+  documents           Document[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  aiResumeParsingResults AiResumeParsingResult[]
+  aiInsights          AiInsight[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String     @id @default(uuid()) @db.Uuid
+  organizationId String     @db.Uuid @map("organization_id")
+  organization   Organization @relation("OrganizationUsers", fields: [organizationId], references: [id], onDelete: Restrict)
+
+  supabaseAuthId String?    @unique @db.Uuid @map("supabase_auth_id")
+
+  passwordHash   String?    @map("password_hash")
+  refreshTokenHash String?  @map("refresh_token_hash")
+
+  email          String     @unique
+  fullName       String?    @map("full_name")
+  phone          String?
+  avatarUrl      String?    @map("avatar_url")
+  status         UserStatus @default(ACTIVE)
+  lastLoginAt    DateTime?  @map("last_login_at")
+
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  isDeleted      Boolean    @default(false) @map("is_deleted")
+  deletedAt      DateTime?  @map("deleted_at")
+  deletedById    String?    @db.Uuid @map("deleted_by_id")
+  deletedBy      User?      @relation("UserDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  usersDeleted   User[]     @relation("UserDeletedBy")
+
+  roles          UserRole[]
+  candidate      Candidate? @relation("CandidateUser")
+  createdCandidates Candidate[] @relation("CandidateCreatedBy")
+  updatedCandidates Candidate[] @relation("CandidateUpdatedBy")
+  deletedCandidates Candidate[] @relation("CandidateDeletedBy")
+  deletedOrganizations Organization[] @relation("OrganizationDeletedBy")
+  referralsCreated Referral[] @relation("ReferralCreatedBy")
+  referralsUpdated Referral[] @relation("ReferralUpdatedBy")
+  referralsReferred Referral[] @relation("ReferralReferrer")
+  workflowEvents WorkflowEvent[]
+  ndaRecordsCreated NdaRecord[] @relation("NdaCreatedBy")
+  accessProvisioningsRequested AccessProvisioning[] @relation("ProvisioningRequestedBy")
+  accessProvisioningsUpdated AccessProvisioning[] @relation("ProvisioningUpdatedBy")
+  internshipsCreated Internship[] @relation("InternshipCreatedBy")
+  internshipsUpdated Internship[] @relation("InternshipUpdatedBy")
+  mentorAssignments MentorAssignment[] @relation("Mentor")
+  mentorAssignmentsCreated MentorAssignment[] @relation("MentorAssignmentCreatedBy")
+  progressUpdates ProgressUpdate[] @relation("ProgressAuthor")
+  certificatesRequested Certificate[] @relation("CertificateRequestedBy")
+  certificatesApproved Certificate[] @relation("CertificateApprovedBy")
+  documentsUploaded Document[] @relation("DocumentUploadedBy")
+  notifications Notification[] @relation("NotificationRecipient")
+  auditLogs      AuditLog[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+model Role {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      RoleType @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  deletedAt DateTime? @map("deleted_at")
+
+  users     UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid @map("user_id")
+  roleId         String   @db.Uuid @map("role_id")
+  organizationId String   @db.Uuid @map("organization_id")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role           Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, roleId, organizationId])
+  @@index([roleId])
+  @@index([organizationId])
+  @@map("user_roles")
+}
+
+model Candidate {
+  id              String          @id @default(uuid()) @db.Uuid
+  organizationId  String          @db.Uuid @map("organization_id")
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  userId          String?         @unique @db.Uuid @map("user_id")
+  user            User?           @relation("CandidateUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  email           String
+  phone           String?
+  firstName       String?         @map("first_name")
+  lastName        String?         @map("last_name")
+  status          CandidateStatus @default(NEW)
+  source          CandidateSource @default(REFERRAL)
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  createdById     String?         @db.Uuid @map("created_by_id")
+  updatedById     String?         @db.Uuid @map("updated_by_id")
+  createdBy       User?           @relation("CandidateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?           @relation("CandidateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  isDeleted       Boolean         @default(false) @map("is_deleted")
+  deletedAt       DateTime?       @map("deleted_at")
+  deletedById     String?         @db.Uuid @map("deleted_by_id")
+  deletedBy       User?           @relation("CandidateDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  profile         CandidateProfile?
+  referrals       Referral[]
+  ndaRecords      NdaRecord[]
+  nonWorkerIds    NonWorkerId[]
+  accessProvisionings AccessProvisioning[]
+  internships     Internship[]
+  progressUpdates ProgressUpdate[]
+  certificates    Certificate[]
+  notifications   Notification[]
+  aiResumeParsingResults AiResumeParsingResult[]
+  aiInsights      AiInsight[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId, status])
+  @@index([createdAt])
+  @@map("candidates")
+}
+
+model CandidateProfile {
+  id             String   @id @default(uuid()) @db.Uuid
+  candidateId    String   @unique @db.Uuid @map("candidate_id")
+  candidate      Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  headline       String?  @db.Text
+  location       String?
+  education      Json?
+  experience     Json?
+  skills         Json?
+  links          Json?
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@index([candidateId])
+  @@map("candidate_profiles")
+}
+
+model Referral {
+  id              String        @id @default(uuid()) @db.Uuid
+  organizationId  String        @db.Uuid @map("organization_id")
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  referrerId      String        @db.Uuid @map("referrer_id")
+  referrer        User          @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Restrict)
+
+  candidateId     String?       @db.Uuid @map("candidate_id")
+  candidate       Candidate?    @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  candidateEmail  String        @map("candidate_email")
+  candidateName   String?       @map("candidate_name")
+  resumeDocumentId String?      @db.Uuid @map("resume_document_id")
+  resumeDocument  Document?     @relation("ReferralResume", fields: [resumeDocumentId], references: [id], onDelete: SetNull)
+
+  status          ReferralStatus @default(SUBMITTED)
+  notes           String?       @db.Text
+  metadata        Json?
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  createdById     String?       @db.Uuid @map("created_by_id")
+  updatedById     String?       @db.Uuid @map("updated_by_id")
+  createdBy       User?         @relation("ReferralCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?         @relation("ReferralUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  isDeleted       Boolean       @default(false) @map("is_deleted")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  workflowEvents  WorkflowEvent[]
+  aiResumeParsingResults AiResumeParsingResult[]
+
+  @@index([organizationId, status])
+  @@index([referrerId, createdAt])
+  @@index([candidateId])
+  @@index([candidateEmail])
+  @@map("referrals")
+}
+
+model WorkflowEvent {
+  id              String            @id @default(uuid()) @db.Uuid
+  organizationId  String            @db.Uuid @map("organization_id")
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  entityType      WorkflowEntityType @map("entity_type")
+  entityId        String            @db.Uuid @map("entity_id")
+  type            WorkflowEventType
+
+  referralId      String?           @db.Uuid @map("referral_id")
+  referral        Referral?         @relation(fields: [referralId], references: [id], onDelete: Cascade)
+
+  actorId         String?           @db.Uuid @map("actor_id")
+  actor           User?             @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  message         String?           @db.Text
+  metadata        Json?
+
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([referralId])
+  @@index([actorId])
+  @@map("workflow_events")
+}
+
+model NdaRecord {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @db.Uuid @map("organization_id")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  candidateId     String    @db.Uuid @map("candidate_id")
+  candidate       Candidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  internshipId    String?   @db.Uuid @map("internship_id")
+  internship      Internship? @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+
+  documentId      String?   @db.Uuid @map("document_id")
+  document        Document? @relation("NdaDocument", fields: [documentId], references: [id], onDelete: SetNull)
+
+  status          NdaStatus @default(DRAFT)
+  sentAt          DateTime? @map("sent_at")
+  signedAt        DateTime? @map("signed_at")
+  expiresAt       DateTime? @map("expires_at")
+  externalSignerId String?  @map("external_signer_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  createdById     String?   @db.Uuid @map("created_by_id")
+  createdBy       User?     @relation("NdaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  isDeleted       Boolean   @default(false) @map("is_deleted")
+  deletedAt       DateTime? @map("deleted_at")
+
+  @@index([organizationId, status])
+  @@index([candidateId])
+  @@index([internshipId])
+  @@map("nda_records")
+}
+
+model NonWorkerId {
+  id              String          @id @default(uuid()) @db.Uuid
+  organizationId  String          @db.Uuid @map("organization_id")
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  candidateId     String          @db.Uuid @map("candidate_id")
+  candidate       Candidate       @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  internshipId    String?         @db.Uuid @map("internship_id")
+  internship      Internship?     @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+
+  value           String          @map("value")
+  status          NonWorkerIdStatus @default(REQUESTED)
+  issuedAt        DateTime?       @map("issued_at")
+  revokedAt       DateTime?       @map("revoked_at")
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  isDeleted       Boolean         @default(false) @map("is_deleted")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  @@unique([organizationId, value])
+  @@index([candidateId])
+  @@index([internshipId])
+  @@index([organizationId, status])
+  @@map("non_worker_ids")
+}
+
+model AccessProvisioning {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @db.Uuid @map("organization_id")
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  candidateId     String             @db.Uuid @map("candidate_id")
+  candidate       Candidate          @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  internshipId    String?            @db.Uuid @map("internship_id")
+  internship      Internship?        @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+
+  requestedById   String?            @db.Uuid @map("requested_by_id")
+  requestedBy     User?              @relation("ProvisioningRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  updatedById     String?            @db.Uuid @map("updated_by_id")
+  updatedBy       User?              @relation("ProvisioningUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  system          AccessSystem
+  status          ProvisioningStatus @default(REQUESTED)
+  details         Json?
+  startedAt       DateTime?          @map("started_at")
+  completedAt     DateTime?          @map("completed_at")
+  failedAt        DateTime?          @map("failed_at")
+  errorMessage    String?            @db.Text @map("error_message")
+
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  isDeleted       Boolean            @default(false) @map("is_deleted")
+  deletedAt       DateTime?          @map("deleted_at")
+
+  @@index([organizationId, status])
+  @@index([candidateId, status])
+  @@index([internshipId])
+  @@index([requestedById])
+  @@map("access_provisioning")
+}
+
+model Internship {
+  id              String          @id @default(uuid()) @db.Uuid
+  organizationId  String          @db.Uuid @map("organization_id")
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  candidateId     String          @db.Uuid @map("candidate_id")
+  candidate       Candidate       @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  title           String?         @map("title")
+  department      String?         @map("department")
+  location        String?         @map("location")
+  startDate       DateTime?       @map("start_date")
+  endDate         DateTime?       @map("end_date")
+  status          InternshipStatus @default(PLANNED)
+  metadata        Json?
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  createdById     String?         @db.Uuid @map("created_by_id")
+  updatedById     String?         @db.Uuid @map("updated_by_id")
+  createdBy       User?           @relation("InternshipCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?           @relation("InternshipUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  isDeleted       Boolean         @default(false) @map("is_deleted")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  mentorAssignments MentorAssignment[]
+  ndaRecords      NdaRecord[]
+  nonWorkerIds    NonWorkerId[]
+  progressUpdates ProgressUpdate[]
+  accessProvisionings AccessProvisioning[]
+  certificates    Certificate[]
+  aiInsights      AiInsight[]
+
+  @@index([organizationId, status])
+  @@index([candidateId])
+  @@index([startDate])
+  @@map("internships")
+}
+
+model MentorAssignment {
+  id              String                @id @default(uuid()) @db.Uuid
+  organizationId  String                @db.Uuid @map("organization_id")
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  internshipId    String                @db.Uuid @map("internship_id")
+  internship      Internship            @relation(fields: [internshipId], references: [id], onDelete: Restrict)
+
+  mentorId        String                @db.Uuid @map("mentor_id")
+  mentor          User                  @relation("Mentor", fields: [mentorId], references: [id], onDelete: Restrict)
+
+  assignedById    String?               @db.Uuid @map("assigned_by_id")
+  assignedBy      User?                 @relation("MentorAssignmentCreatedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  status          MentorAssignmentStatus @default(ACTIVE)
+  startDate       DateTime              @default(now()) @map("start_date")
+  endDate         DateTime?             @map("end_date")
+  notes           String?               @db.Text
+
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  isDeleted       Boolean               @default(false) @map("is_deleted")
+  deletedAt       DateTime?             @map("deleted_at")
+
+  @@index([organizationId, status])
+  @@index([mentorId, status])
+  @@index([internshipId])
+  @@map("mentor_assignments")
+}
+
+model ProgressUpdate {
+  id              String            @id @default(uuid()) @db.Uuid
+  organizationId  String            @db.Uuid @map("organization_id")
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  internshipId    String            @db.Uuid @map("internship_id")
+  internship      Internship        @relation(fields: [internshipId], references: [id], onDelete: Restrict)
+
+  candidateId     String?           @db.Uuid @map("candidate_id")
+  candidate       Candidate?        @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  authorId        String?           @db.Uuid @map("author_id")
+  author          User?             @relation("ProgressAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  type            ProgressUpdateType @default(NOTE)
+  content         String            @db.Text
+  metrics         Json?
+
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  isDeleted       Boolean           @default(false) @map("is_deleted")
+  deletedAt       DateTime?         @map("deleted_at")
+
+  @@index([organizationId, createdAt])
+  @@index([internshipId, createdAt])
+  @@index([authorId])
+  @@map("progress_updates")
+}
+
+model Certificate {
+  id              String           @id @default(uuid()) @db.Uuid
+  organizationId  String           @db.Uuid @map("organization_id")
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  internshipId    String           @db.Uuid @map("internship_id")
+  internship      Internship       @relation(fields: [internshipId], references: [id], onDelete: Restrict)
+
+  candidateId     String           @db.Uuid @map("candidate_id")
+  candidate       Candidate        @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  status          CertificateStatus @default(REQUESTED)
+  serialNumber    String?          @map("serial_number")
+
+  requestedById   String?          @db.Uuid @map("requested_by_id")
+  requestedBy     User?            @relation("CertificateRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  approvedById    String?          @db.Uuid @map("approved_by_id")
+  approvedBy      User?            @relation("CertificateApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  generatedAt     DateTime?        @map("generated_at")
+  issuedAt        DateTime?        @map("issued_at")
+
+  documentId      String?          @db.Uuid @map("document_id")
+  document        Document?        @relation("CertificateDocument", fields: [documentId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  isDeleted       Boolean          @default(false) @map("is_deleted")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  @@unique([organizationId, serialNumber])
+  @@index([organizationId, status])
+  @@index([internshipId])
+  @@index([candidateId])
+  @@map("certificates")
+}
+
+model Document {
+  id              String          @id @default(uuid()) @db.Uuid
+  organizationId  String          @db.Uuid @map("organization_id")
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  ownerType       DocumentOwnerType @map("owner_type")
+  ownerId         String          @db.Uuid @map("owner_id")
+  type            DocumentType
+
+  storageProvider StorageProvider @default(SUPABASE) @map("storage_provider")
+  bucket          String
+  path            String
+  filename        String
+  mimeType        String?         @map("mime_type")
+  sizeBytes       BigInt?         @map("size_bytes")
+  checksum        String?
+  metadata        Json?
+
+  uploadedById    String?         @db.Uuid @map("uploaded_by_id")
+  uploadedBy      User?           @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  isDeleted       Boolean         @default(false) @map("is_deleted")
+  deletedAt       DateTime?       @map("deleted_at")
+  referralsAsResume Referral[]    @relation("ReferralResume")
+  ndaRecords      NdaRecord[]     @relation("NdaDocument")
+  certificates    Certificate[]   @relation("CertificateDocument")
+  aiResumeParsingResults AiResumeParsingResult[]
+
+  @@unique([bucket, path])
+  @@index([organizationId, createdAt])
+  @@index([ownerType, ownerId])
+  @@index([type])
+  @@map("documents")
+}
+
+model Notification {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @db.Uuid @map("organization_id")
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  recipientUserId String?            @db.Uuid @map("recipient_user_id")
+  recipientUser   User?              @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  recipientEmail  String?            @map("recipient_email")
+
+  candidateId     String?            @db.Uuid @map("candidate_id")
+  candidate       Candidate?         @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  type            NotificationType   @default(GENERAL)
+  channel         NotificationChannel
+  status          NotificationStatus @default(QUEUED)
+
+  subject         String?
+  body            String?            @db.Text
+  payload         Json?
+  scheduledAt     DateTime?          @map("scheduled_at")
+  sentAt          DateTime?          @map("sent_at")
+  failedAt        DateTime?          @map("failed_at")
+  errorMessage    String?            @db.Text @map("error_message")
+
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  isDeleted       Boolean            @default(false) @map("is_deleted")
+  deletedAt       DateTime?          @map("deleted_at")
+
+  @@index([organizationId, status])
+  @@index([recipientUserId, status])
+  @@index([candidateId])
+  @@index([scheduledAt, status])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid @map("organization_id")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  actorId        String?        @db.Uuid @map("actor_id")
+  actor          User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  action         AuditAction
+  entityType     AuditEntityType @map("entity_type")
+  entityId       String?        @db.Uuid @map("entity_id")
+
+  summary        String?
+  changes        Json?
+  ipAddress      String?        @map("ip_address")
+  userAgent      String?        @map("user_agent")
+  requestId      String?        @map("request_id")
+
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model AiResumeParsingResult {
+  id              String      @id @default(uuid()) @db.Uuid
+  organizationId  String      @db.Uuid @map("organization_id")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  referralId      String?     @db.Uuid @map("referral_id")
+  referral        Referral?   @relation(fields: [referralId], references: [id], onDelete: SetNull)
+
+  candidateId     String?     @db.Uuid @map("candidate_id")
+  candidate       Candidate?  @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  documentId      String?     @db.Uuid @map("document_id")
+  document        Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  status          AiJobStatus @default(PENDING)
+  provider        AiProvider  @default(OPENAI)
+  model           String?
+  promptVersion   String?     @map("prompt_version")
+  inputTokens     Int?        @map("input_tokens")
+  outputTokens    Int?        @map("output_tokens")
+
+  rawText         String?     @db.Text @map("raw_text")
+  parsedData      Json?       @map("parsed_data")
+  errorMessage    String?     @db.Text @map("error_message")
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@index([organizationId, createdAt])
+  @@index([referralId, createdAt])
+  @@index([candidateId, createdAt])
+  @@map("ai_resume_parsing_results")
+}
+
+model AiInsight {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid @map("organization_id")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  candidateId     String?      @db.Uuid @map("candidate_id")
+  candidate       Candidate?   @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  internshipId    String?      @db.Uuid @map("internship_id")
+  internship      Internship?  @relation(fields: [internshipId], references: [id], onDelete: SetNull)
+
+  type            AiInsightType
+  status          AiJobStatus  @default(PENDING)
+  provider        AiProvider   @default(OPENAI)
+  model           String?
+  confidence      Float?
+  data            Json?
+
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  isDeleted       Boolean      @default(false) @map("is_deleted")
+  deletedAt       DateTime?    @map("deleted_at")
+
+  @@index([organizationId, type, createdAt])
+  @@index([candidateId, type, createdAt])
+  @@index([internshipId, type, createdAt])
+  @@map("ai_insights")
 }

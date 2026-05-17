@@ -3,3 +3,8 @@ node_modules
 .env.local
 .DS_Store
 dist
+.vscode/mcp.json
+mcp.json
+**/.env
+apps/api/.env
+apps/api-nest/.env
